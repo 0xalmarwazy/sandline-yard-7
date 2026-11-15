@@ -61,6 +61,7 @@ export function applyShot(state, shot) {
     holdBot(rook, 0);
     holdBot(sable, 0);
     state.buyOpen = true;
+    state.banner = null; // startRound's banner would overlap the menu
     return;
   }
 
@@ -70,6 +71,7 @@ export function applyShot(state, shot) {
     state.phaseTime = 20;
     state.roundTimeLeft = 80;
     state.buyOpen = false;
+    state.banner = null; // no buy-phase banner in a firefight
     p.owned.vk47 = true;
     p.weapon = 'vk47';
     p.mag.vk47 = 30;

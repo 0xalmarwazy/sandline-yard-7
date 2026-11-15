@@ -1,6 +1,8 @@
 // Keyboard and mouse input. Writes into state.input each frame; the sim
-// consumes the edge-triggered flags (firePressed, reload, buy, use, grenade,
-// slot, buyKey) and main.js clears them after every step.
+// consumes the edge-triggered flags (firePressed, reload, buy, grenade,
+// slot, buyKey) and main.js clears them after every step. Movement, crouch
+// and use (E) are HELD states: they track the key set, because planting and
+// defusing need E held for seconds, not tapped once.
 
 export function createInput(state, canvas, onLockChange) {
   const input = state.input;
@@ -12,6 +14,7 @@ export function createInput(state, canvas, onLockChange) {
     input.left = keys.has('KeyA') || keys.has('ArrowLeft');
     input.right = keys.has('KeyD') || keys.has('ArrowRight');
     input.crouch = keys.has('ControlLeft') || keys.has('ControlRight') || keys.has('KeyC');
+    input.use = keys.has('KeyE');
   }
 
   function onKeyDown(e) {
@@ -21,7 +24,6 @@ export function createInput(state, canvas, onLockChange) {
     if (e.code === 'Space') { input.jump = true; e.preventDefault(); }
     if (e.code === 'KeyR') input.reload = true;
     if (e.code === 'KeyB') input.buy = true;
-    if (e.code === 'KeyE') input.use = true;
     if (e.code === 'KeyG') input.grenade = true;
     if (e.code === 'KeyM') state.muted = !state.muted;
     if (e.code === 'Digit1') input.slot = 1;
@@ -89,7 +91,6 @@ export function createInput(state, canvas, onLockChange) {
       input.firePressed = false;
       input.reload = false;
       input.buy = false;
-      input.use = false;
       input.grenade = false;
       input.slot = 0;
       input.buyKey = 0;
