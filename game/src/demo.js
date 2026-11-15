@@ -131,16 +131,16 @@ export function applyShot(state, shot) {
     p.mag.vk47 = 18;
     p.reserve.vk47 = 60;
     place(p, -23, -19, -1.0);
-    place(rook, -28, -18, -2.6);
-    place(sable, -19, -23, -2.0);
+    place(rook, -33, -15, -2.4);
+    place(sable, -20, -27, -2.0);
     place(ash, -33, -22, -2.2);
     place(flint, -25, -28, -0.6);
     place(vex, -36, -20, 0.9);
     place(mira, -14, -16, -2.2);
-    place(dusk, -30, -28, 0.4);
+    place(dusk, -27, -29, 0.4);
     place(nyx, -38, -26, 0.7);
     place(onyx, -22, -30, -0.2);
-    holdBot(rook, -2.6);
+    holdBot(rook, -2.4);
     holdBot(sable, -2.0);
     holdBot(ash, -2.2);
     holdBot(flint, -0.6);
@@ -156,7 +156,9 @@ export function applyShot(state, shot) {
   }
 
   if (shot === 'end') {
-    // Round just won: the banner and the score tell the story.
+    // Round just won: the banner and the score tell the story. The player
+    // stands in the mid doorway (not behind the doors wall) so the fallen
+    // Jackals read instead of the wall faces.
     state.phase = 'roundEnd';
     state.phaseTime = 1;
     state.round = 5;
@@ -165,11 +167,11 @@ export function applyShot(state, shot) {
     state.roundWinner = 'van';
     state.roundReason = 'All Jackals eliminated';
     state.buyOpen = false;
-    place(p, 0, 6, 0);
-    place(rook, -4, 10, 0.4);
-    place(sable, 5, 12, -0.3);
-    place(ash, -8, 8, 0.3);
-    place(flint, 8, 10, -0.4);
+    place(p, 0, 0, 0);
+    place(rook, -4, 4, 0.4);
+    place(sable, 5, 5, -0.3);
+    place(ash, -8, 2, 0.3);
+    place(flint, 8, 3, -0.4);
     // The Jackals are down (placed, then marked dead — place revives).
     place(vex, 2, -6, Math.PI);
     place(mira, -6, -10, Math.PI);
