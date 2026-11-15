@@ -5,7 +5,7 @@
 // on the menu for every player.
 
 import { SITES } from './config.js';
-import { setBanner } from './state.js';
+import { pushCallout, setBanner } from './state.js';
 
 export function parseShot() {
   const q = new URLSearchParams(window.location.search);
@@ -44,8 +44,8 @@ function holdBot(e, yaw) {
 // Set up a fixed game state for one screenshot. Called after startRound.
 export function applyShot(state, shot) {
   const p = state.players[0];
-  const [rook, sable] = [state.players[1], state.players[2]];
-  const [vex, mira, dusk] = [state.players[3], state.players[4], state.players[5]];
+  const [rook, sable, ash, flint] = [state.players[1], state.players[2], state.players[3], state.players[4]];
+  const [vex, mira, dusk, nyx, onyx] = [state.players[5], state.players[6], state.players[7], state.players[8], state.players[9]];
   state.demo = true;
 
   if (shot === 'start') {
@@ -58,15 +58,20 @@ export function applyShot(state, shot) {
     place(p, -6, 24, 0);
     place(rook, -12, 18, 0.2);
     place(sable, 0, 18, -0.2);
+    place(ash, -6, 16, 0);
+    place(flint, 5, 20, -0.4);
     holdBot(rook, 0);
     holdBot(sable, 0);
+    holdBot(ash, 0);
+    holdBot(flint, 0);
     state.buyOpen = true;
     state.banner = null; // startRound's banner would overlap the menu
     return;
   }
 
   if (shot === 'combat') {
-    // Mid-lane firefight: two Jackals in view ahead of the player.
+    // Mid-lane firefight: three Jackals in view ahead of the player, two
+    // more behind them, tracers in the air, a contact callout on the radio.
     state.phase = 'live';
     state.phaseTime = 20;
     state.roundTimeLeft = 80;
@@ -78,24 +83,33 @@ export function applyShot(state, shot) {
     p.reserve.vk47 = 90;
     place(p, 0, 10, 0);
     place(rook, -3, 14, 0.3);
+    place(sable, 6, 16, -0.4);
+    place(ash, -6, 18, 0.2);
+    place(flint, 3, 20, 0);
     place(vex, 2, -8, Math.PI);
     place(mira, -5, -12, Math.PI - 0.3);
     place(dusk, 8, -16, Math.PI + 0.2);
-    place(sable, 6, 16, -0.4);
+    place(nyx, -2, -18, Math.PI);
+    place(onyx, 12, -10, Math.PI + 0.5);
     holdBot(vex, Math.PI);
     holdBot(mira, Math.PI);
     holdBot(dusk, Math.PI);
-    // A couple of tracers already in the air sell the firefight.
+    holdBot(nyx, Math.PI);
+    holdBot(onyx, Math.PI);
+    // Tracers already in the air sell the firefight.
     state.tracers.push(
       { x0: 2, y0: 1.4, z0: -8, x1: 0.5, y1: 1.5, z1: 6, until: state.time + 30, team: 'jac' },
       { x0: -5, y0: 1.4, z0: -12, x1: -1, y1: 1.2, z1: 8, until: state.time + 30, team: 'jac' },
+      { x0: 8, y0: 1.4, z0: -16, x1: 1.5, y1: 1.3, z1: 4, until: state.time + 30, team: 'jac' },
     );
+    pushCallout(state, 'Rook: Contact mid!', 'van');
     return;
   }
 
   if (shot === 'site') {
     // Bomb planted at A: the player stands inside the site looking at the
-    // bomb and its beacon, teammates and Jackals around the walls.
+    // bomb and its beacon, teammates and Jackals around the walls, and a
+    // smoke cloud covering the north entry.
     state.phase = 'live';
     state.phaseTime = 45;
     state.roundTimeLeft = 0;
@@ -112,15 +126,25 @@ export function applyShot(state, shot) {
     p.reserve.vk47 = 60;
     place(p, -23, -19, -1.0);
     place(rook, -28, -18, -2.6);
+    place(sable, -19, -23, -2.0);
+    place(ash, -33, -22, -2.2);
+    place(flint, -25, -28, -0.6);
     place(vex, -36, -20, 0.9);
     place(mira, -14, -16, -2.2);
     place(dusk, -30, -28, 0.4);
-    place(sable, -19, -23, -2.0);
+    place(nyx, -38, -26, 0.7);
+    place(onyx, -22, -30, -0.2);
     holdBot(rook, -2.6);
+    holdBot(sable, -2.0);
+    holdBot(ash, -2.2);
+    holdBot(flint, -0.6);
     holdBot(vex, 0.9);
     holdBot(mira, -2.2);
     holdBot(dusk, 0.4);
-    holdBot(sable, -2.0);
+    holdBot(nyx, 0.7);
+    holdBot(onyx, -0.2);
+    state.smoke.push({ x: -31, z: -30, r: 4.5, born: state.time, until: state.time + 30 });
+    pushCallout(state, 'Flint: Bomb down A — hold angles', 'van');
     setBanner(state, 'BOMB PLANTED', 'Site A — 22s to detonation', 30);
     return;
   }
@@ -138,11 +162,15 @@ export function applyShot(state, shot) {
     place(p, 0, 6, 0);
     place(rook, -4, 10, 0.4);
     place(sable, 5, 12, -0.3);
+    place(ash, -8, 8, 0.3);
+    place(flint, 8, 10, -0.4);
     // The Jackals are down (placed, then marked dead — place revives).
     place(vex, 2, -6, Math.PI);
     place(mira, -6, -10, Math.PI);
     place(dusk, 6, -14, Math.PI);
-    for (const e of [vex, mira, dusk]) {
+    place(nyx, -2, -16, Math.PI);
+    place(onyx, 10, -8, Math.PI);
+    for (const e of [vex, mira, dusk, nyx, onyx]) {
       e.alive = false;
       e.health = 0;
     }

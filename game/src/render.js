@@ -46,6 +46,22 @@ function makeBotMesh(e) {
   const visor = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.1, 0.06), accentMat);
   visor.position.set(0, 1.6, -0.22);
   group.add(visor);
+  // Kit detail: backpack, shoulder pads and a team chest stripe so bots
+  // read as soldiers, not capsules, at screenshot distance.
+  const pack = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.44, 0.18), darkMat);
+  pack.position.set(0, 1.28, 0.3);
+  pack.castShadow = true;
+  group.add(pack);
+  const padGeo = new THREE.BoxGeometry(0.14, 0.1, 0.22);
+  const padL = new THREE.Mesh(padGeo, darkMat);
+  padL.position.set(-0.3, 1.44, 0);
+  group.add(padL);
+  const padR = new THREE.Mesh(padGeo, darkMat);
+  padR.position.set(0.3, 1.44, 0);
+  group.add(padR);
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.07, 0.03), accentMat);
+  stripe.position.set(0, 1.18, -0.31);
+  group.add(stripe);
   const gun = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.14, 0.62), darkMat);
   gun.position.set(0.22, 1.22, -0.4);
   group.add(gun);
@@ -64,7 +80,7 @@ function makeBotMesh(e) {
   sprite.position.y = 2.15;
   sprite.renderOrder = 10;
   group.add(sprite);
-  group.userData = { body, head, gun, sprite, ring };
+  group.userData = { body, head, gun, sprite, ring, pack, padL, padR, stripe };
   return group;
 }
 
@@ -97,8 +113,16 @@ function makeViewmodel() {
   flash.position.set(0, 0.02, -0.62);
   group.add(flash);
   group.userData.flash = flash;
+  group.userData.barrel = barrel;
   return group;
 }
+
+// Viewmodel barrel shape per weapon: [radius, length]. The vk47 gets a long
+// barrel, the m870 a thick one, the p9 a stub — so the gun in your hands
+// matches what you bought.
+const VM_BARREL = {
+  p9: [0.02, 0.26], k9: [0.022, 0.3], m870: [0.04, 0.38], vk47: [0.028, 0.46],
+};
 
 export function createRenderer(state, container) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -117,12 +141,12 @@ export function createRenderer(state, container) {
   const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.05, 300);
   camera.rotation.order = 'YXZ';
 
-  // Lighting: warm sun, sky/ground bounce, plus a low ambient floor so
-  // shadow-side faces stay readable instead of going black.
-  const hemi = new THREE.HemisphereLight(0xbfd9ff, 0x8a7a5a, 1.5);
+  // Lighting: golden hour — warm low sun, sky/ground bounce, plus a low
+  // ambient floor so shadow-side faces stay readable instead of going black.
+  const hemi = new THREE.HemisphereLight(0xc3d4e2, 0x8a7a5a, 1.5);
   scene.add(hemi);
   scene.add(new THREE.AmbientLight(0xffffff, 0.35));
-  const sun = new THREE.DirectionalLight(0xfff2d8, 2.4);
+  const sun = new THREE.DirectionalLight(0xffd9a0, 2.4);
   sun.position.set(30, 45, 20);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
@@ -188,15 +212,62 @@ export function createRenderer(state, container) {
   const boomLight = new THREE.PointLight(0xff9a3d, 0, 30, 1.5);
   scene.add(boomLight);
 
-  // Grenade meshes, pooled.
+  // Grenade meshes, pooled. 8 slots: 10 players can have more live
+  // grenades than the v1 pool of 4.
   const grenadeMeshes = [];
   const grenadeGeo = new THREE.SphereGeometry(0.11, 10, 8);
   const grenadeMat = new THREE.MeshStandardMaterial({ color: 0x2a2d33, roughness: 0.5, metalness: 0.6 });
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 8; i++) {
     const m = new THREE.Mesh(grenadeGeo, grenadeMat);
     m.visible = false;
     scene.add(m);
     grenadeMeshes.push(m);
+  }
+
+  // Bot muzzle flashes: one shared radial-gradient texture, pooled sprites,
+  // triggered when a bot's lastShotAt advances.
+  const flashTex = (() => {
+    const c = document.createElement('canvas');
+    c.width = 64; c.height = 64;
+    const g = c.getContext('2d');
+    const grad = g.createRadialGradient(32, 32, 2, 32, 32, 30);
+    grad.addColorStop(0, 'rgba(255,255,220,1)');
+    grad.addColorStop(0.4, 'rgba(255,190,80,0.9)');
+    grad.addColorStop(1, 'rgba(255,120,20,0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 64, 64);
+    return new THREE.CanvasTexture(c);
+  })();
+  const botFlashes = [];
+  for (let i = 0; i < 9; i++) {
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: flashTex, color: 0xffd27a, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true,
+    }));
+    sprite.scale.set(0.7, 0.7, 1);
+    sprite.visible = false;
+    scene.add(sprite);
+    botFlashes.push({ sprite, until: 0 });
+  }
+  let botFlashIdx = 0;
+  const botShotSeen = new Map();
+
+  // Smoke clouds: pooled groups of translucent spheres, one material per
+  // group so each cloud fades independently near expiry.
+  const smokeGroups = [];
+  for (let i = 0; i < 4; i++) {
+    const group = new THREE.Group();
+    const mat = new THREE.MeshBasicMaterial({ color: 0x8f9296, transparent: true, opacity: 0, depthWrite: false });
+    const geo = new THREE.IcosahedronGeometry(1, 1);
+    for (let j = 0; j < 5; j++) {
+      const m = new THREE.Mesh(geo, mat);
+      const a = (j / 5) * Math.PI * 2 + i * 1.3;
+      m.position.set(Math.cos(a) * 1.6, 0.4 + (j % 3) * 0.7, Math.sin(a) * 1.6);
+      m.scale.setScalar(1.4 + (j % 2) * 0.5);
+      group.add(m);
+    }
+    group.visible = false;
+    scene.add(group);
+    smokeGroups.push({ group, mat });
   }
 
   // Bomb: a small case with a blinking beacon, shown once planted.
@@ -219,7 +290,8 @@ export function createRenderer(state, container) {
   bombGroup.visible = false;
   scene.add(bombGroup);
 
-  // Site beacons: soft light columns over each site so they read at a glance.
+  // Site beacons: soft light columns over each site so they read at a glance,
+  // plus a tinted point light in the site's colour (teal A, amber B).
   for (const key of Object.keys(SITES)) {
     const s = SITES[key];
     const col = new THREE.Mesh(
@@ -228,10 +300,14 @@ export function createRenderer(state, container) {
     );
     col.position.set(s.cx, 7, s.cz);
     scene.add(col);
+    const glow = new THREE.PointLight(s.color, 30, 26, 1.8);
+    glow.position.set(s.cx, 4, s.cz);
+    scene.add(glow);
   }
 
   let bobPhase = 0;
   let lastShotSeen = -1;
+  let lastVmWeapon = '';
   const _v = new THREE.Vector3();
 
   function resize() {
@@ -264,6 +340,15 @@ export function createRenderer(state, container) {
     const speed = Math.hypot(p.vel.x, p.vel.z);
     bobPhase += dt * (2 + speed * 1.6);
     const bobAmp = Math.min(0.012, speed * 0.002);
+    // Swap the barrel shape when the weapon changes (scale, not new geometry).
+    if (p.weapon !== lastVmWeapon) {
+      lastVmWeapon = p.weapon;
+      const [r, len] = VM_BARREL[p.weapon] || VM_BARREL.p9;
+      const barrel = viewmodel.userData.barrel;
+      barrel.scale.set(r / 0.025, len / 0.34, r / 0.025);
+      barrel.position.z = -(0.23 + len / 2);
+      viewmodel.userData.flash.position.z = -(0.28 + len);
+    }
     viewmodel.visible = p.alive && !state.demoCam;
     if (viewmodel.visible) {
       const reloadDip = p.reloadLeft > 0 ? Math.sin(Math.min(1, p.reloadLeft / 0.6) * Math.PI) * 0.25 : 0;
@@ -298,13 +383,36 @@ export function createRenderer(state, container) {
         mesh.position.y = e.pos.y + (moving > 0.5 ? Math.abs(Math.sin(now * 9 + e.id)) * 0.04 : 0);
         mesh.userData.body.scale.y = e.crouched ? 0.82 : 1;
         mesh.userData.head.position.y = e.crouched ? 1.32 : 1.58;
+        mesh.userData.pack.position.y = e.crouched ? 1.08 : 1.28;
+        mesh.userData.padL.position.y = e.crouched ? 1.24 : 1.44;
+        mesh.userData.padR.position.y = e.crouched ? 1.24 : 1.44;
+        mesh.userData.stripe.position.y = e.crouched ? 1.0 : 1.18;
         mesh.userData.sprite.visible = true;
+        // Muzzle flash when this bot just fired.
+        const prevShot = botShotSeen.get(e.id) ?? -1;
+        if (e.lastShotAt > prevShot) {
+          botShotSeen.set(e.id, e.lastShotAt);
+          const f = botFlashes[botFlashIdx];
+          botFlashIdx = (botFlashIdx + 1) % botFlashes.length;
+          f.sprite.position.set(
+            e.pos.x + Math.sin(e.yaw) * 0.7,
+            e.pos.y + 1.25,
+            e.pos.z - Math.cos(e.yaw) * 0.7,
+          );
+          f.sprite.visible = true;
+          f.until = now + 0.06;
+        }
       } else {
         // Fallen: lying flat, fading ring.
         mesh.rotation.set(-Math.PI / 2, -e.yaw, 0);
         mesh.position.y = 0.25;
         mesh.userData.sprite.visible = false;
       }
+    }
+
+    // Hide expired bot muzzle flashes.
+    for (const f of botFlashes) {
+      if (f.sprite.visible && now > f.until) f.sprite.visible = false;
     }
 
     // Tracers.
@@ -332,6 +440,8 @@ export function createRenderer(state, container) {
       ring.mesh.lookAt(camera.position);
       ring.born = now;
       ring.big = !!imp.big;
+      // Flesh hits render red, wall hits gold (combat.js sets `color`).
+      ring.mesh.material.color.setHex(imp.color || 0xffd27a);
       ring.mesh.material.opacity = 0.9;
       if (imp.big) {
         boom.visible = true;
@@ -369,6 +479,22 @@ export function createRenderer(state, container) {
         m.visible = false;
       }
     }
+
+    // Smoke clouds: pool follows state.smoke, blooming in over 1 s and
+    // fading out over the last 2 s of the cloud's life.
+    let si = 0;
+    for (const c of state.smoke) {
+      if (si >= smokeGroups.length) break;
+      const s = smokeGroups[si++];
+      const age = now - c.born;
+      const fadeIn = Math.min(1, age / 1);
+      const fadeOut = Math.min(1, Math.max(0, c.until - now) / 2);
+      s.mat.opacity = 0.38 * fadeIn * fadeOut;
+      s.group.position.set(c.x, 1.1, c.z);
+      s.group.scale.setScalar(0.6 + 0.4 * fadeIn);
+      s.group.visible = s.mat.opacity > 0.01;
+    }
+    for (; si < smokeGroups.length; si++) smokeGroups[si].group.visible = false;
 
     // Bomb.
     const planted = state.bomb.state === 'planted';

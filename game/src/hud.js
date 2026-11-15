@@ -19,9 +19,9 @@ export function createHud(state, callbacks) {
   for (const id of [
     'health-num', 'health-bar', 'money', 'ammo-mag', 'ammo-reserve',
     'weapon-name', 'grenades', 'timer', 'score-van', 'score-jac', 'round-num',
-    'feed', 'banner', 'banner-title', 'banner-sub', 'buy-menu', 'buy-list',
+    'feed', 'radio', 'banner', 'banner-title', 'banner-sub', 'buy-menu', 'buy-list',
     'bomb-status', 'bomb-timer', 'plant-bar', 'plant-fill', 'plant-label',
-    'team-van', 'team-jac', 'crosshair', 'vignette', 'minimap',
+    'team-van', 'team-jac', 'crosshair', 'hitmarker', 'dmgdir', 'vignette', 'minimap',
     'overlay', 'overlay-title', 'overlay-copy', 'play-btn', 'end-stats',
     'hint', 'spectate',
   ]) refs[id] = el(id);
@@ -136,6 +136,24 @@ export function createHud(state, callbacks) {
     }
   }
 
+  let lastRadioLen = 0;
+  let lastRadioText = '';
+  function updateRadio() {
+    const list = state.callouts;
+    const key = list.map((c) => c.text).join('|');
+    if (list.length === lastRadioLen && key === lastRadioText) return;
+    lastRadioLen = list.length;
+    lastRadioText = key;
+    if (!refs.radio) return;
+    refs.radio.innerHTML = '';
+    for (const c of list) {
+      const div = document.createElement('div');
+      div.className = `radio-line ${c.team}`;
+      div.textContent = c.text;
+      refs.radio.appendChild(div);
+    }
+  }
+
   function update(state) {
     const p = state.players[0];
     const inGame = state.phase === 'buy' || state.phase === 'live' || state.phase === 'roundEnd';
@@ -143,6 +161,22 @@ export function createHud(state, callbacks) {
     if (refs.vignette) {
       const a = p.alive ? Math.min(0.75, state.damageFlash * 0.8 + (p.health < 35 ? 0.3 : 0)) : 0.6;
       refs.vignette.style.opacity = String(a);
+    }
+
+    // Hitmarker: flash on a hit, red on a kill or headshot.
+    const hm = state.hitmark;
+    const hmOn = inGame && p.alive && state.time - hm.at < 0.18 && hm.at >= 0;
+    show(refs.hitmarker, hmOn);
+    if (refs.hitmarker) refs.hitmarker.classList.toggle('kill', hm.kill || hm.head);
+
+    // Damage direction: rotate the arc toward whoever shot you.
+    if (refs.dmgdir) {
+      const on = p.alive && state.damageFlash > 0.25 && state.damageFromYaw !== undefined;
+      refs.dmgdir.style.opacity = on ? String(Math.min(1, state.damageFlash)) : '0';
+      if (on) {
+        const deg = (state.damageFromYaw - p.yaw) * (180 / Math.PI);
+        refs.dmgdir.style.transform = `rotate(${deg.toFixed(0)}deg)`;
+      }
     }
 
     // Health / ammo / money.
@@ -153,7 +187,10 @@ export function createHud(state, callbacks) {
     setText('ammo-mag', String(p.mag[p.weapon]));
     setText('ammo-reserve', `/ ${p.reserve[p.weapon]}`);
     setText('weapon-name', def.name.toUpperCase());
-    setText('grenades', p.grenades > 0 ? `G ×${p.grenades}` : '');
+    const nades = [];
+    if (p.grenades > 0) nades.push(`G ×${p.grenades}`);
+    if (p.smokes > 0) nades.push(`F ×${p.smokes}`);
+    setText('grenades', nades.join('  '));
     const ammoEl = document.getElementById('ammo');
     if (ammoEl) ammoEl.classList.toggle('empty', p.mag[p.weapon] === 0);
 
@@ -213,13 +250,13 @@ export function createHud(state, callbacks) {
 
     // Hint line: contextual, one line.
     let hint = '';
-    if (state.phase === 'buy') hint = 'B buy menu · 1–5 buy · WASD move · Click fire';
+    if (state.phase === 'buy') hint = 'B buy menu · 1–6 buy · WASD move · Click fire';
     else if (state.phase === 'live' && p.alive) {
       const inSite = Object.values(SITES).some((s) => p.pos.x >= s.x0 && p.pos.x <= s.x1 && p.pos.z >= s.z0 && p.pos.z <= s.z1);
       if (state.bomb.state === 'idle' && inSite) hint = 'Hold E to plant the bomb';
       else if (state.bomb.state === 'planted' && Math.hypot(p.pos.x - state.bomb.pos.x, p.pos.z - state.bomb.pos.z) < 2.5) hint = 'Hold E to defuse';
       else if (state.bomb.state === 'planted') hint = `Bomb planted at site ${state.bomb.site}`;
-      else hint = 'Plant the bomb at A or B · E plant · G grenade · Ctrl crouch';
+      else hint = 'Plant the bomb at A or B · E plant · G frag · F smoke · Ctrl crouch';
     }
     setText('hint', hint);
 
@@ -241,7 +278,7 @@ export function createHud(state, callbacks) {
     // Overlays.
     if (state.phase === 'menu') {
       setText('overlay-title', 'SANDLINE');
-      setText('overlay-copy', 'Yard 7 — a 3v3 tactical shooter. Plant the bomb, hold the sites, win 5 rounds. Vanguard attacks; Jackals defend.');
+      setText('overlay-copy', 'Yard 7 — a 5v5 tactical shooter. Plant the bomb, hold the sites, win 5 rounds. Vanguard attacks; Jackals defend.');
       setText('play-btn', 'Click to play');
       show(refs.overlay, true);
       show(refs['end-stats'], false);
@@ -265,6 +302,7 @@ export function createHud(state, callbacks) {
     }
 
     updateFeed();
+    updateRadio();
     drawMinimap();
   }
 

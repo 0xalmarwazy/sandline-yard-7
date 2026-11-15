@@ -70,6 +70,65 @@ function hazardTexture(color) {
   return tex;
 }
 
+// Concrete: speckle + panel seams on the wall colour, drawn once and
+// re-tiled per wall size through cached materials (repeat bucketed so a
+// 90 m perimeter wall and a 2 m pillar share a handful of textures).
+function concreteCanvas() {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = '#62686f';
+  g.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 2600; i++) {
+    const x = Math.random() * 256, y = Math.random() * 256;
+    g.fillStyle = Math.random() < 0.5 ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.05)';
+    g.fillRect(x, y, 2, 2);
+  }
+  g.strokeStyle = 'rgba(0,0,0,0.18)';
+  g.lineWidth = 3;
+  for (let i = 0; i <= 256; i += 128) {
+    g.beginPath(); g.moveTo(0, i); g.lineTo(256, i); g.stroke();
+    g.beginPath(); g.moveTo(i, 0); g.lineTo(i, 256); g.stroke();
+  }
+  return c;
+}
+
+// Container ribs: light-grey vertical corrugation; the material colour
+// tints it teal or amber (colour multiplies the map).
+function ribCanvas() {
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 128;
+  const g = c.getContext('2d');
+  g.fillStyle = '#c8c8c8';
+  g.fillRect(0, 0, 128, 128);
+  for (let x = 0; x < 128; x += 16) {
+    g.fillStyle = 'rgba(0,0,0,0.22)';
+    g.fillRect(x, 0, 4, 128);
+    g.fillStyle = 'rgba(255,255,255,0.14)';
+    g.fillRect(x + 8, 0, 4, 128);
+  }
+  return c;
+}
+
+function signTexture(text, color) {
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 128;
+  const g = c.getContext('2d');
+  g.fillStyle = '#1c1e22';
+  g.fillRect(0, 0, 512, 128);
+  g.strokeStyle = color;
+  g.lineWidth = 6;
+  g.strokeRect(8, 8, 496, 112);
+  g.fillStyle = color;
+  g.font = '900 64px system-ui, sans-serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText(text, 256, 68);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 export function buildMap(scene) {
   const group = new THREE.Group();
   group.name = 'map';
@@ -82,6 +141,35 @@ export function buildMap(scene) {
     containerA: new THREE.MeshStandardMaterial({ color: PALETTE.containerA, roughness: 0.7, metalness: 0.25 }),
     containerB: new THREE.MeshStandardMaterial({ color: PALETTE.containerB, roughness: 0.7, metalness: 0.25 }),
   };
+
+  // Textured wall/container materials, cached by repeat bucket. Walls get
+  // the concrete canvas (colour baked in); containers get the rib canvas
+  // tinted by their palette colour.
+  const concrete = concreteCanvas();
+  const ribs = ribCanvas();
+  const texCache = new Map();
+  function tiledMaterial(canvas, rx, ry, color) {
+    const key = `${canvas.width}-${rx}x${ry}-${color}`;
+    if (!texCache.has(key)) {
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(rx, ry);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      texCache.set(key, new THREE.MeshStandardMaterial({ map: tex, color, roughness: 0.9 }));
+    }
+    return texCache.get(key);
+  }
+  function wallMatFor(w, sx, sz) {
+    if (w.kind === 'containerA' || w.kind === 'containerB') {
+      const color = w.kind === 'containerA' ? PALETTE.containerA : PALETTE.containerB;
+      return tiledMaterial(ribs, Math.max(1, Math.round(sx / 2)), 1, color);
+    }
+    if (w.kind === 'wall') {
+      return tiledMaterial(concrete, Math.max(1, Math.round(Math.max(sx, sz) / 6)), Math.max(1, Math.round(w.h / 3)), 0xffffff);
+    }
+    return mats[w.kind] || mats.wall;
+  }
 
   // Ground.
   const ground = new THREE.Mesh(
@@ -105,7 +193,7 @@ export function buildMap(scene) {
   const boxGeo = new THREE.BoxGeometry(1, 1, 1);
   for (const w of WALLS) {
     const sx = w.x1 - w.x0, sz = w.z1 - w.z0;
-    const mesh = new THREE.Mesh(boxGeo, mats[w.kind] || mats.wall);
+    const mesh = new THREE.Mesh(boxGeo, wallMatFor(w, sx, sz));
     mesh.scale.set(sx, w.h, sz);
     mesh.position.set((w.x0 + w.x1) / 2, w.h / 2, (w.z0 + w.z1) / 2);
     mesh.castShadow = true;
@@ -124,6 +212,39 @@ export function buildMap(scene) {
       lid.position.set((w.x0 + w.x1) / 2, w.h - 0.04, (w.z0 + w.z1) / 2);
       group.add(lid);
     }
+  }
+
+  // Signage: the yard's name on the mid-doors wall (both faces) and a
+  // site sign on each hut, in the site's colour.
+  function addSign(text, color, w, h, x, y, z, rotY) {
+    const m = new THREE.Mesh(
+      new THREE.PlaneGeometry(w, h),
+      new THREE.MeshBasicMaterial({ map: signTexture(text, color) }),
+    );
+    m.position.set(x, y, z);
+    m.rotation.y = rotY;
+    group.add(m);
+  }
+  addSign('YARD 7', '#f0a830', 5.5, 1.4, -4.5, 2.2, 5.06, 0);
+  addSign('YARD 7', '#f0a830', 5.5, 1.4, 4.5, 2.2, 5.06, 0);
+  addSign('YARD 7', '#f0a830', 5.5, 1.4, -4.5, 2.2, 3.94, Math.PI);
+  addSign('YARD 7', '#f0a830', 5.5, 1.4, 4.5, 2.2, 3.94, Math.PI);
+  addSign('WAREHOUSE A', '#2dd4bf', 2.8, 0.7, -30.94, 1.9, -26.5, Math.PI / 2);
+  addSign('DEPOT B', '#f59e0b', 2.8, 0.7, 30.94, 1.9, -26.5, -Math.PI / 2);
+
+  // Stacked containers: a second box on top of three ground containers.
+  // Visual only — the collision box underneath is unchanged, so bot
+  // navigation is unaffected (bullets pass through the top box, as they
+  // do the barrels).
+  const stackMatA = tiledMaterial(ribs, 2, 1, PALETTE.containerA);
+  const stackMatB = tiledMaterial(ribs, 2, 1, PALETTE.containerB);
+  for (const [x, z, mat] of [[-26, -29.75, stackMatA], [26, -29.75, stackMatB], [8, 15.25, stackMatA]]) {
+    const m = new THREE.Mesh(boxGeo, mat);
+    m.scale.set(4, 2.6, 2.5);
+    m.position.set(x, 2.6 + 1.3, z);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    group.add(m);
   }
 
   // Bomb sites: a letter decal and a hazard border on the ground.
@@ -180,6 +301,32 @@ export function buildMap(scene) {
     m.scale.set(w, h, 8);
     m.position.set(x, h / 2 - 0.1, z);
     group.add(m);
+  }
+
+  // Tower cranes: a mast, a jib and a counter-jib each, silhouetted
+  // against the sky outside the arena.
+  const craneMat = new THREE.MeshStandardMaterial({ color: 0x3a3e45, roughness: 0.9 });
+  for (const [x, z, rotY] of [[-58, -45, 0.5], [58, 42, -0.9]]) {
+    const crane = new THREE.Group();
+    const mast = new THREE.Mesh(boxGeo, craneMat);
+    mast.scale.set(1.2, 20, 1.2);
+    mast.position.y = 10;
+    crane.add(mast);
+    const jib = new THREE.Mesh(boxGeo, craneMat);
+    jib.scale.set(14, 0.8, 0.8);
+    jib.position.set(3.5, 19.5, 0);
+    crane.add(jib);
+    const counter = new THREE.Mesh(boxGeo, craneMat);
+    counter.scale.set(5, 0.8, 0.8);
+    counter.position.set(-4.5, 19.5, 0);
+    crane.add(counter);
+    const cable = new THREE.Mesh(boxGeo, craneMat);
+    cable.scale.set(0.12, 6, 0.12);
+    cable.position.set(9, 16.5, 0);
+    crane.add(cable);
+    crane.position.set(x, 0, z);
+    crane.rotation.y = rotY;
+    group.add(crane);
   }
 
   scene.add(group);

@@ -34,6 +34,21 @@
   #crosshair i:nth-child(4) { top: -1px; left: var(--gap); height: 2px; width: 8px; }
   #crosshair b { position: absolute; left: -1px; top: -1px; width: 2px; height: 2px; background: var(--ink); }
 
+  /* Hitmarker: four diagonal ticks at the crosshair, red on a kill. */
+  #hitmarker { position: fixed; left: 50%; top: 50%; width: 0; height: 0; }
+  #hitmarker i { position: absolute; width: 9px; height: 2px; background: var(--ink); box-shadow: 0 0 2px #000; }
+  #hitmarker i:nth-child(1) { left: -14px; top: -13px; transform: rotate(45deg); }
+  #hitmarker i:nth-child(2) { left: 5px; top: -13px; transform: rotate(-45deg); }
+  #hitmarker i:nth-child(3) { left: -14px; top: 11px; transform: rotate(-45deg); }
+  #hitmarker i:nth-child(4) { left: 5px; top: 11px; transform: rotate(45deg); }
+  #hitmarker.kill i { background: var(--danger); }
+
+  /* Damage direction: a red arc on a ring around the crosshair, rotated
+     toward whoever shot you. */
+  #dmgdir { position: fixed; left: 50%; top: 50%; width: 90px; height: 90px; margin: -45px 0 0 -45px; opacity: 0; }
+  #dmgdir i { position: absolute; left: 50%; top: -2px; width: 34px; height: 8px; margin-left: -17px; border-radius: 4px;
+    background: linear-gradient(to right, transparent, rgba(255, 60, 60, .9) 30%, rgba(255, 60, 60, .9) 70%, transparent); }
+
   #vignette { position: fixed; inset: 0; opacity: 0; background: radial-gradient(ellipse at center, transparent 55%, rgba(200, 30, 30, .55) 100%); }
 
   /* Top bar: score, timer, round. */
@@ -61,6 +76,11 @@
   #teams { position: fixed; top: 196px; left: 14px; display: grid; gap: 4px; font-family: var(--font-readout); font-size: 13px; }
   #team-van { color: var(--van); }
   #team-jac { color: var(--jac); }
+
+  /* Radio: bot team callouts, newest last. */
+  #radio { position: fixed; top: 240px; left: 14px; display: grid; gap: 4px; max-width: 320px; font-size: 13px; }
+  .radio-line { background: rgba(16, 18, 22, .72); padding: 5px 10px; border-radius: 4px; border-left: 3px solid var(--van); }
+  .radio-line.jac { border-left-color: var(--jac); }
 
   /* Bottom left: health + money. */
   #vitals { position: fixed; left: 24px; bottom: 24px; width: 260px; }
@@ -128,6 +148,8 @@
 
 <div id="hud" aria-hidden="true">
   <div id="crosshair"><i></i><i></i><i></i><i></i><b></b></div>
+  <div id="hitmarker" hidden><i></i><i></i><i></i><i></i></div>
+  <div id="dmgdir"><i></i></div>
   <div id="vignette"></div>
   <div id="topbar">
     <span class="side" id="score-van">0</span>
@@ -136,7 +158,8 @@
     <span class="side" id="score-jac">0</span>
   </div>
   <canvas id="minimap" width="168" height="168"></canvas>
-  <div id="teams"><span id="team-van">VAN 3</span><span id="team-jac">JAC 3</span></div>
+  <div id="teams"><span id="team-van">VAN 5</span><span id="team-jac">JAC 5</span></div>
+  <div id="radio"></div>
   <div id="feed"></div>
   <div id="bomb-status" hidden>BOMB<span id="bomb-timer"></span></div>
   <div id="banner" hidden><div id="banner-title"></div><div id="banner-sub"></div></div>
@@ -155,7 +178,7 @@
   <div id="spectate" hidden></div>
   <div id="buy-menu" hidden>
     <h2>BUY GEAR</h2>
-    <p class="buy-sub">Press 1–5 to buy · B closes · you keep what you buy between rounds</p>
+    <p class="buy-sub">Press 1–6 to buy · B closes · you keep what you buy between rounds</p>
     <div id="buy-list"></div>
   </div>
 </div>
@@ -163,7 +186,7 @@
 <div id="overlay" class="overlay">
   <section class="panel" role="dialog" aria-modal="true" aria-labelledby="overlay-title">
     <h1 id="overlay-title">SAND<span>LINE</span></h1>
-    <p id="overlay-copy">Yard 7 — a 3v3 tactical shooter. Plant the bomb, hold the sites, win 5 rounds.</p>
+    <p id="overlay-copy">Yard 7 — a 5v5 tactical shooter. Plant the bomb, hold the sites, win 5 rounds.</p>
     <p id="end-stats" hidden></p>
     <button id="play-btn" type="button">Click to play</button>
     <ul class="keys">
@@ -174,7 +197,8 @@
       <li><kbd>Ctrl</kbd> Crouch</li>
       <li><kbd>Space</kbd> Jump</li>
       <li><kbd>E</kbd> Plant / defuse</li>
-      <li><kbd>G</kbd> Grenade</li>
+      <li><kbd>G</kbd> Frag grenade</li>
+      <li><kbd>F</kbd> Smoke grenade</li>
       <li><kbd>B</kbd> Buy menu</li>
       <li><kbd>1–4</kbd> Weapons</li>
     </ul>
