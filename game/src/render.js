@@ -58,7 +58,7 @@ function makeBotMesh(e) {
   group.add(ring);
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
     map: nameTexture(e.name, `#${teamColor.toString(16).padStart(6, '0')}`),
-    transparent: true, depthTest: false,
+    transparent: true, depthTest: true,
   }));
   sprite.scale.set(1.7, 0.42, 1);
   sprite.position.y = 2.15;
@@ -105,7 +105,7 @@ export function createRenderer(state, container) {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
   container.appendChild(renderer.domElement);
@@ -117,9 +117,12 @@ export function createRenderer(state, container) {
   const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.05, 300);
   camera.rotation.order = 'YXZ';
 
-  const hemi = new THREE.HemisphereLight(0xbfd9ff, 0x8a7a5a, 0.9);
+  // Lighting: warm sun, sky/ground bounce, plus a low ambient floor so
+  // shadow-side faces stay readable instead of going black.
+  const hemi = new THREE.HemisphereLight(0xbfd9ff, 0x8a7a5a, 1.5);
   scene.add(hemi);
-  const sun = new THREE.DirectionalLight(0xfff2d8, 2.2);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+  const sun = new THREE.DirectionalLight(0xfff2d8, 2.4);
   sun.position.set(30, 45, 20);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
@@ -144,7 +147,8 @@ export function createRenderer(state, container) {
 
   // Viewmodel + muzzle light, parented to the camera.
   const viewmodel = makeViewmodel();
-  viewmodel.position.set(0.28, -0.26, -0.5);
+  viewmodel.position.set(0.26, -0.24, -0.55);
+  viewmodel.scale.setScalar(0.85);
   camera.add(viewmodel);
   const muzzleLight = new THREE.PointLight(0xffc46b, 0, 9, 1.8);
   muzzleLight.position.set(0.2, -0.1, -0.8);
@@ -264,9 +268,9 @@ export function createRenderer(state, container) {
     if (viewmodel.visible) {
       const reloadDip = p.reloadLeft > 0 ? Math.sin(Math.min(1, p.reloadLeft / 0.6) * Math.PI) * 0.25 : 0;
       viewmodel.position.set(
-        0.28 + Math.sin(bobPhase) * bobAmp,
-        -0.26 + Math.abs(Math.cos(bobPhase)) * bobAmp - reloadDip,
-        -0.5 + p.recoil * 1.2,
+        0.26 + Math.sin(bobPhase) * bobAmp,
+        -0.24 + Math.abs(Math.cos(bobPhase)) * bobAmp - reloadDip,
+        -0.55 + p.recoil * 1.2,
       );
       viewmodel.rotation.x = p.recoil * 2.2 - reloadDip * 0.8;
       viewmodel.rotation.z = Math.sin(bobPhase) * bobAmp * 0.4;

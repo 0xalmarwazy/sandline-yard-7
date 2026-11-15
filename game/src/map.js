@@ -169,7 +169,7 @@ export function buildMap(scene) {
   }
 
   // Skyline: dark slabs outside the walls for depth at a glance.
-  const skyMat = new THREE.MeshStandardMaterial({ color: 0x2b2f36, roughness: 1 });
+  const skyMat = new THREE.MeshStandardMaterial({ color: 0x4a4f57, roughness: 1 });
   const skyline = [
     [-60, -20, 18, 14], [-30, -55, 24, 20], [10, -58, 16, 11],
     [55, -30, 20, 16], [62, 15, 14, 22], [-62, 25, 16, 12],

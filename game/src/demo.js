@@ -50,15 +50,17 @@ export function applyShot(state, shot) {
 
   if (shot === 'start') {
     // Buy phase at the attacker spawn, looking down mid, buy menu open.
+    // Teammates stand ahead of the player so they read in frame without
+    // blocking the camera. No banner here: startRound's already expired
+    // by capture time and would overlap the menu.
     state.phase = 'buy';
     state.phaseTime = 2;
     place(p, -6, 24, 0);
-    place(rook, -10, 25, 0.2);
-    place(sable, -2, 25, -0.2);
+    place(rook, -12, 18, 0.2);
+    place(sable, 0, 18, -0.2);
     holdBot(rook, 0);
     holdBot(sable, 0);
     state.buyOpen = true;
-    setBanner(state, 'ROUND 1', 'Buy your gear — press B to close', 3);
     return;
   }
 
@@ -90,7 +92,8 @@ export function applyShot(state, shot) {
   }
 
   if (shot === 'site') {
-    // Bomb planted at A, defenders closing in, player holding the angle.
+    // Bomb planted at A: the player stands inside the site looking at the
+    // bomb and its beacon, teammates and Jackals around the walls.
     state.phase = 'live';
     state.phaseTime = 45;
     state.roundTimeLeft = 0;
@@ -105,16 +108,17 @@ export function applyShot(state, shot) {
     p.weapon = 'vk47';
     p.mag.vk47 = 18;
     p.reserve.vk47 = 60;
-    place(p, -22, -8, -0.5);
+    place(p, -23, -19, -1.0);
     place(rook, -28, -18, -2.6);
     place(vex, -36, -20, 0.9);
     place(mira, -14, -16, -2.2);
     place(dusk, -30, -28, 0.4);
-    place(sable, -20, -20, -1.2);
+    place(sable, -19, -23, -2.0);
     holdBot(rook, -2.6);
     holdBot(vex, 0.9);
     holdBot(mira, -2.2);
     holdBot(dusk, 0.4);
+    holdBot(sable, -2.0);
     setBanner(state, 'BOMB PLANTED', 'Site A — 22s to detonation', 30);
     return;
   }
