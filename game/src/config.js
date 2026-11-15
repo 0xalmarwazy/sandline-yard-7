@@ -3,7 +3,7 @@
 
 export const PALETTE = {
   sky: 0x87b5d6,
-  fog: 0x9db8c8,
+  fog: 0xd8c8a8,
   ground: 0xc2a878,
   groundDark: 0xa8905f,
   wall: 0x62686f,

@@ -58,7 +58,7 @@ export function resolveShot(state, shooter, def, dir) {
   // Tracer from the muzzle to the hit point (renderer fades it).
   state.tracers.push({
     x0: shooter.pos.x, y0: shooter.pos.y + 1.35, z0: shooter.pos.z,
-    x1: hit.x, y1: hit.y, z1: hit.z, until: state.time + 0.06,
+    x1: hit.x, y1: hit.y, z1: hit.z, until: state.time + 0.09,
     team: shooter.team,
   });
   if (state.tracers.length > 64) state.tracers.shift();

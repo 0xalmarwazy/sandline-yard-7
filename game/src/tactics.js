@@ -51,12 +51,18 @@ export function shareIntel(state, team, x, z) {
 
 // One radio callout, throttled per bot (6 s) and per team (1.5 s) so the
 // feed stays readable. kind picks the sentence; detail fills it in.
-// `entity` is the bot entity (its brain holds the throttle).
+// `entity` is the bot entity (its brain holds the throttle). Returns true
+// when the callout actually fired — callers that only say something once
+// (cover, help) set their flag only on a real fire, not a throttled try.
+// Those one-shot callouts bypass the per-bot throttle (they fire at most
+// once per round each, so they cannot spam) but still respect the team
+// one — a bot that just called contact can still cover the plant.
 export function callout(state, entity, kind, detail) {
   const now = state.time;
   const b = entity.bot;
-  if (!b || now < b.calloutAt) return;
-  if (now < state.calloutAt[entity.team] + 1.5) return;
+  const oneShot = kind === 'cover' || kind === 'help';
+  if (!b || (!oneShot && now < b.calloutAt)) return false;
+  if (now < state.calloutAt[entity.team] + 1.5) return false;
   let text = '';
   if (kind === 'contact') text = `${entity.name}: Contact ${detail}!`;
   else if (kind === 'planting') text = `${entity.name}: Planting ${detail}`;
@@ -64,10 +70,14 @@ export function callout(state, entity, kind, detail) {
   else if (kind === 'rotating') text = `${entity.name}: Rotating to ${detail}`;
   else if (kind === 'plan') text = `${entity.name}: ${detail}`;
   else if (kind === 'defusing') text = `${entity.name}: Defusing — cover me`;
-  else return;
+  else if (kind === 'cover') text = `${entity.name}: Covering plant — watch ${detail}`;
+  else if (kind === 'smoke') text = `${entity.name}: Smoking ${detail} entry`;
+  else if (kind === 'help') text = `${entity.name}: Hurt at ${detail} — need help`;
+  else return false;
   b.calloutAt = now + 6;
   state.calloutAt[entity.team] = now;
   pushCallout(state, text, entity.team);
+  return true;
 }
 
 // Post-plant hold waypoint for one attacker, spread over the site's spots.
@@ -90,7 +100,8 @@ function shuffle(rng, arr) {
 
 // Round setup: pick the attackers' plan and give every bot a role, a lane
 // and a waypoint chain. Plans rotate so no two rounds play the same.
-//   split: two lanes into the site, one lurker pressuring the other site.
+//   split: two pairs, two lanes — the second bot in each pair follows
+//     2.5 s behind its leader, so the team moves in pairs.
 //   rush:  all four through one lane, entries first, planter last.
 //   fake:  three bots show at the off-site, then swing to the real one.
 export function assignTeamPlans(state) {
@@ -106,6 +117,7 @@ export function assignTeamPlans(state) {
 
   const lanes = ['west', 'mid', 'east'];
   const rushLane = lanes[Math.floor(rng() * lanes.length)];
+  const pairLanes = shuffle(rng, lanes.slice()).slice(0, 2);
   vans.forEach((e, i) => {
     const b = e.bot;
     b.role = 'entry';
@@ -114,19 +126,18 @@ export function assignTeamPlans(state) {
     b.lastKnown = null;
     b.state = 'route';
     b.lurkUntil = 0;
+    b.goAt = 0;
+    b.coverCalled = false;
+    b.helpCalled = false;
     if (planName === 'split') {
-      const lane = lanes[i % lanes.length];
+      // Pairs: (0,1) take one lane, (2,3) another, both distinct; the
+      // second bot in each pair starts 2.5 s after its leader.
+      const lane = i < 2 ? pairLanes[0] : pairLanes[1];
       b.lane = lane;
-      if (i === 3) {
-        // The lurker pressures the off-site, then joins the real push.
-        b.role = 'lurker';
-        b.via = LANES[lane][off === 'A' ? 'toA' : 'toB'].slice(0, 2);
-        b.lurkUntil = state.time + 26;
-      } else {
-        b.via = LANES[lane][site === 'A' ? 'toA' : 'toB'].slice();
-        if (i === 1) b.role = 'planter';
-        if (i === 2) b.role = 'support';
-      }
+      b.via = LANES[lane][site === 'A' ? 'toA' : 'toB'].slice();
+      if (i % 2 === 1) b.goAt = state.time + 2.5;
+      if (i === 1) b.role = 'planter';
+      if (i === 2) b.role = 'support';
     } else if (planName === 'rush') {
       b.lane = rushLane;
       b.via = LANES[rushLane][site === 'A' ? 'toA' : 'toB'].slice();

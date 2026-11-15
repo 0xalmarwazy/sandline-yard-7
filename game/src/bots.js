@@ -31,6 +31,8 @@ export function initBots(state) {
       // Team plan, written by tactics.js each round.
       role: 'entry', planSite: 'A', via: [],
       calloutAt: -10, rotateAt: 0, lurkUntil: 0,
+      goAt: 0, // pair stagger: do not move out before this time
+      coverCalled: false, helpCalled: false,
       stuckAt: 0, lastX: 0, lastZ: 0,
       throwAt: 0,
     };
@@ -99,6 +101,12 @@ function hearNoise(state, e) {
 function think(state, e) {
   const b = e.bot;
   const now = state.time;
+  // Freeze time: during the buy phase bots hold where they are (defenders
+  // drift to their hold spots via the hold state; attackers wait at spawn).
+  if (state.phase === 'buy') {
+    b.state = 'hold';
+    return;
+  }
   // Perception: nearest visible enemy, or the one that just shot us.
   const { enemy, dist } = nearestEnemy(state, e);
   let seen = null;
@@ -114,9 +122,14 @@ function think(state, e) {
       b.target = seen.id;
       b.trackTime = 0;
       b.reactAt = now + 0.35 + state.rng() * 0.3;
-      // Team play: share the sighting and call it on the radio.
+      // Team play: share the sighting and call it on the radio. A hurt
+      // bot calls for help instead of a plain contact.
       shareIntel(state, e.team, seen.pos.x, seen.pos.z);
-      callout(state, e, 'contact', zoneOf(seen.pos.x, seen.pos.z));
+      if (e.health < 40 && !b.helpCalled) {
+        if (callout(state, e, 'help', zoneOf(e.pos.x, e.pos.z))) b.helpCalled = true;
+      } else {
+        callout(state, e, 'contact', zoneOf(seen.pos.x, seen.pos.z));
+      }
     }
     b.lastKnown = { x: seen.pos.x, z: seen.pos.z, at: now };
     b.state = 'engage';
@@ -219,6 +232,14 @@ function think(state, e) {
     }
   }
 
+  // Pair stagger: the second bot in a split pair holds at spawn until
+  // its leader is 2.5 s out, so the team moves in pairs. Perception,
+  // intel and the bomb above all override it.
+  if (b.goAt > 0 && state.time - state.liveAt < b.goAt) {
+    b.state = 'hold';
+    return;
+  }
+
   // Role behaviour.
   if (e.team === 'van') {
     // Lurkers and fakers hold their off-site approach until the mark.
@@ -249,11 +270,20 @@ function think(state, e) {
         if (b.state !== 'plant') callout(state, e, 'planting', `site ${b.planSite}`);
         b.state = 'plant';
       } else {
+        // Cover the planter: hold a site spot facing the main entry and
+        // say so once, so the player sees the coordination.
         b.state = 'hold';
         const hold = siteHoldWp(b.planSite, state.players.indexOf(e));
         if (b.holdWp !== hold) {
           b.holdWp = hold;
+          const hp = WAYPOINTS[hold], ap = WAYPOINTS[approachWp(b.planSite)];
+          b.holdYaw = Math.atan2(ap.x - hp.x, -(ap.z - hp.z));
           routeTo(state, e, hold);
+        }
+        if (bomb.channeler >= 0 && bomb.plantProgress > 0 && !b.coverCalled) {
+          if (callout(state, e, 'cover', zoneOf(WAYPOINTS[approachWp(b.planSite)].x, WAYPOINTS[approachWp(b.planSite)].z))) {
+            b.coverCalled = true;
+          }
         }
       }
       return;
@@ -459,7 +489,10 @@ function stepBot(state, e, dt) {
       const site = SITES[b.planSite];
       const nearSite = site && dist2(e.pos.x, e.pos.z, site.cx, site.cz) < 22;
       const wantSmoke = e.team === 'van' && nearSite && e.smokes > 0 && state.rng() < 0.6;
-      if (tryThrowGrenade(state, e, wantSmoke ? 'smoke' : 'frag')) b.throwAt = now + 8;
+      if (tryThrowGrenade(state, e, wantSmoke ? 'smoke' : 'frag')) {
+        b.throwAt = now + 8;
+        if (wantSmoke) callout(state, e, 'smoke', `site ${b.planSite}`);
+      }
     }
   }
 

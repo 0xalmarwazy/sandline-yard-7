@@ -65,6 +65,14 @@ function step(dt) {
     return;
   }
 
+  // Demo screenshot mode (?shot=): the player is unkillable and unhurt,
+  // so a staged firefight stays framed. The bots still shoot for real —
+  // the tracers, flashes and radio in the screenshots are the live sim.
+  if (state.demo) {
+    const p0 = state.players[0];
+    p0.health = 100; p0.alive = true; state.damageFlash = 0;
+  }
+
   stepRound(state, dt);
   // Round end freezes everyone until the next round starts.
   if (state.phase === 'menu' || state.phase === 'matchEnd' || state.phase === 'roundEnd') {
@@ -130,5 +138,5 @@ requestAnimationFrame(frame);
 window.__sandline = {
   state,
   step: (n) => { for (let i = 0; i < n; i++) step(STEP); },
-  version: 'yard7-2.0.0',
+  version: 'yard7-3.0.0',
 };

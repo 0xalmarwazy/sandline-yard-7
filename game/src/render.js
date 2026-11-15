@@ -84,27 +84,68 @@ function makeBotMesh(e) {
   return group;
 }
 
+// Shared radial-gradient texture (sun, clouds, muzzle flashes): one
+// canvas, drawn once, reused everywhere a soft glow is needed.
+function radialTexture(stops) {
+  const c = document.createElement('canvas');
+  c.width = 64; c.height = 64;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(32, 32, 2, 32, 32, 30);
+  for (const [at, color] of stops) grad.addColorStop(at, color);
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+}
+
+// Sky dome gradient: blue zenith, pale mid-band, warm golden-hour horizon.
+function skyTexture() {
+  const c = document.createElement('canvas');
+  c.width = 4; c.height = 256;
+  const g = c.getContext('2d');
+  const grad = g.createLinearGradient(0, 0, 0, 256);
+  grad.addColorStop(0, '#5f9fd0');
+  grad.addColorStop(0.55, '#a9c8de');
+  grad.addColorStop(0.78, '#f6cf9a');
+  grad.addColorStop(1, '#e8b57e');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 4, 256);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 function makeViewmodel() {
   const group = new THREE.Group();
-  const dark = new THREE.MeshStandardMaterial({ color: 0x1d1f24, roughness: 0.6, metalness: 0.4 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x24262b, roughness: 0.55, metalness: 0.5 });
+  const tan = new THREE.MeshStandardMaterial({ color: 0x9a7d4f, roughness: 0.7, metalness: 0.2 });
   const accent = new THREE.MeshStandardMaterial({ color: PALETTE.accent, roughness: 0.5, metalness: 0.3 });
-  const receiver = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.13, 0.5), dark);
+  // Slim receiver + tan handguard + stock: reads as a rifle, not a slab.
+  const receiver = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.1, 0.36), dark);
   group.add(receiver);
-  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.34, 8), dark);
+  const handguard = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.08, 0.2), tan);
+  handguard.position.set(0, -0.005, -0.26);
+  group.add(handguard);
+  const stock = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.09, 0.16), dark);
+  stock.position.set(0, -0.01, 0.24);
+  group.add(stock);
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.3, 8), dark);
   barrel.rotation.x = Math.PI / 2;
-  barrel.position.set(0, 0.02, -0.4);
+  barrel.position.set(0, 0.02, -0.42);
   group.add(barrel);
-  const mag = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.2, 0.1), dark);
-  mag.position.set(0, -0.15, -0.05);
+  const mag = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.15, 0.08), dark);
+  mag.position.set(0, -0.12, -0.03);
   mag.rotation.x = 0.15;
   group.add(mag);
-  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.16, 0.09), dark);
-  grip.position.set(0, -0.12, 0.18);
+  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.12, 0.07), dark);
+  grip.position.set(0, -0.1, 0.14);
   grip.rotation.x = -0.3;
   group.add(grip);
-  const sight = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.06, 0.1), accent);
-  sight.position.set(0, 0.1, -0.1);
-  group.add(sight);
+  const frontSight = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.05, 0.02), accent);
+  frontSight.position.set(0, 0.08, -0.32);
+  group.add(frontSight);
+  const rearSight = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.04, 0.06), accent);
+  rearSight.position.set(0, 0.07, 0.08);
+  group.add(rearSight);
   // Muzzle flash quad at the barrel tip.
   const flash = new THREE.Mesh(
     new THREE.PlaneGeometry(0.3, 0.3),
@@ -114,6 +155,7 @@ function makeViewmodel() {
   group.add(flash);
   group.userData.flash = flash;
   group.userData.barrel = barrel;
+  group.userData.stock = stock;
   return group;
 }
 
@@ -121,8 +163,11 @@ function makeViewmodel() {
 // barrel, the m870 a thick one, the p9 a stub — so the gun in your hands
 // matches what you bought.
 const VM_BARREL = {
-  p9: [0.02, 0.26], k9: [0.022, 0.3], m870: [0.04, 0.38], vk47: [0.028, 0.46],
+  p9: [0.016, 0.22], k9: [0.018, 0.26], m870: [0.034, 0.34], vk47: [0.024, 0.42],
 };
+// Whole-gun scale per weapon: the sidearm is a compact pistol, the
+// shotgun the biggest gun in the hand.
+const VM_SCALE = { p9: 0.62, k9: 0.74, m870: 0.85, vk47: 0.8 };
 
 export function createRenderer(state, container) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -138,6 +183,27 @@ export function createRenderer(state, container) {
   scene.background = new THREE.Color(PALETTE.sky);
   scene.fog = new THREE.Fog(PALETTE.fog, 60, 160);
 
+  // Sky dome + sun + clouds: the horizon is atmosphere, not a flat colour.
+  const sky = new THREE.Mesh(
+    new THREE.SphereGeometry(240, 24, 16),
+    new THREE.MeshBasicMaterial({ map: skyTexture(), side: THREE.BackSide, fog: false }),
+  );
+  scene.add(sky);
+  const sunSprite = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: radialTexture([[0, 'rgba(255,250,230,1)'], [0.35, 'rgba(255,220,150,0.9)'], [1, 'rgba(255,180,90,0)']]),
+    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false,
+  }));
+  sunSprite.scale.set(70, 70, 1);
+  sunSprite.position.set(120, 62, 76);
+  scene.add(sunSprite);
+  const cloudTex = radialTexture([[0, 'rgba(255,255,255,0.85)'], [0.6, 'rgba(255,255,255,0.4)'], [1, 'rgba(255,255,255,0)']]);
+  for (const [cx, cy, cz, s] of [[-140, 75, -120, 90], [60, 88, -160, 110], [150, 70, 60, 80], [-60, 95, 150, 100], [10, 65, -190, 70]]) {
+    const cloud = new THREE.Sprite(new THREE.SpriteMaterial({ map: cloudTex, transparent: true, opacity: 0.55, depthWrite: false, fog: false }));
+    cloud.scale.set(s, s * 0.36, 1);
+    cloud.position.set(cx, cy, cz);
+    scene.add(cloud);
+  }
+
   const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.05, 300);
   camera.rotation.order = 'YXZ';
 
@@ -147,15 +213,16 @@ export function createRenderer(state, container) {
   scene.add(hemi);
   scene.add(new THREE.AmbientLight(0xffffff, 0.35));
   const sun = new THREE.DirectionalLight(0xffd9a0, 2.4);
-  sun.position.set(30, 45, 20);
+  sun.position.set(55, 28, 35);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.camera.left = -55;
   sun.shadow.camera.right = 55;
   sun.shadow.camera.top = 55;
   sun.shadow.camera.bottom = -55;
-  sun.shadow.camera.far = 120;
-  sun.shadow.bias = -0.0005;
+  sun.shadow.camera.far = 170;
+  sun.shadow.bias = -0.0008;
+  sun.shadow.normalBias = 0.03;
   scene.add(sun);
 
   buildMap(scene);
@@ -169,22 +236,29 @@ export function createRenderer(state, container) {
     botMeshes.set(e.id, mesh);
   }
 
-  // Viewmodel + muzzle light, parented to the camera.
+  // Viewmodel + muzzle light, parented to the camera. A small fill light
+  // rides with the camera so the gun never reads as a black silhouette.
   const viewmodel = makeViewmodel();
-  viewmodel.position.set(0.26, -0.24, -0.55);
-  viewmodel.scale.setScalar(0.85);
+  viewmodel.position.set(0.3, -0.27, -0.72);
+  viewmodel.rotation.y = -0.06;
+  viewmodel.scale.setScalar(0.8);
   camera.add(viewmodel);
+  const vmLight = new THREE.PointLight(0xfff2dd, 2.5, 3.5, 1.6);
+  vmLight.position.set(0.1, 0.15, -0.3);
+  camera.add(vmLight);
   const muzzleLight = new THREE.PointLight(0xffc46b, 0, 9, 1.8);
   muzzleLight.position.set(0.2, -0.1, -0.8);
   camera.add(muzzleLight);
   scene.add(camera);
 
   // Tracers: one LineSegments, positions rebuilt from state each frame.
+  // Each tracer draws 3 parallel lines (a faked thickness: WebGL ignores
+  // line width), so shots read at a glance.
   const tracerGeo = new THREE.BufferGeometry();
-  const tracerPos = new Float32Array(MAX_TRACERS * 6);
+  const tracerPos = new Float32Array(MAX_TRACERS * 18);
   tracerGeo.setAttribute('position', new THREE.BufferAttribute(tracerPos, 3));
   const tracers = new THREE.LineSegments(tracerGeo, new THREE.LineBasicMaterial({
-    color: 0xffe9a8, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false,
+    color: 0xfff2c0, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false,
   }));
   tracers.frustumCulled = false;
   scene.add(tracers);
@@ -224,20 +298,9 @@ export function createRenderer(state, container) {
     grenadeMeshes.push(m);
   }
 
-  // Bot muzzle flashes: one shared radial-gradient texture, pooled sprites,
+  // Bot muzzle flashes: pooled sprites on the shared radial texture,
   // triggered when a bot's lastShotAt advances.
-  const flashTex = (() => {
-    const c = document.createElement('canvas');
-    c.width = 64; c.height = 64;
-    const g = c.getContext('2d');
-    const grad = g.createRadialGradient(32, 32, 2, 32, 32, 30);
-    grad.addColorStop(0, 'rgba(255,255,220,1)');
-    grad.addColorStop(0.4, 'rgba(255,190,80,0.9)');
-    grad.addColorStop(1, 'rgba(255,120,20,0)');
-    g.fillStyle = grad;
-    g.fillRect(0, 0, 64, 64);
-    return new THREE.CanvasTexture(c);
-  })();
+  const flashTex = radialTexture([[0, 'rgba(255,255,220,1)'], [0.4, 'rgba(255,190,80,0.9)'], [1, 'rgba(255,120,20,0)']]);
   const botFlashes = [];
   for (let i = 0; i < 9; i++) {
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
@@ -270,20 +333,28 @@ export function createRenderer(state, container) {
     smokeGroups.push({ group, mat });
   }
 
-  // Bomb: a small case with a blinking beacon, shown once planted.
+  // Bomb: a case with a blinking beacon and a red ring on the ground,
+  // shown once planted — big enough to read across a site.
   const bombGroup = new THREE.Group();
   const bombCase = new THREE.Mesh(
-    new THREE.BoxGeometry(0.45, 0.25, 0.3),
+    new THREE.BoxGeometry(0.62, 0.3, 0.42),
     new THREE.MeshStandardMaterial({ color: 0x1d1f24, roughness: 0.5, metalness: 0.5 }),
   );
-  bombCase.position.y = 0.13;
+  bombCase.position.y = 0.15;
   bombGroup.add(bombCase);
   const beacon = new THREE.Mesh(
-    new THREE.SphereGeometry(0.07, 10, 8),
+    new THREE.SphereGeometry(0.09, 10, 8),
     new THREE.MeshBasicMaterial({ color: 0xff2222 }),
   );
-  beacon.position.y = 0.32;
+  beacon.position.y = 0.38;
   bombGroup.add(beacon);
+  const bombRing = new THREE.Mesh(
+    new THREE.RingGeometry(0.55, 0.72, 24),
+    new THREE.MeshBasicMaterial({ color: 0xff2222, transparent: true, opacity: 0.6, side: THREE.DoubleSide, depthWrite: false }),
+  );
+  bombRing.rotation.x = -Math.PI / 2;
+  bombRing.position.y = 0.03;
+  bombGroup.add(bombRing);
   const bombLight = new THREE.PointLight(0xff2222, 0, 6, 2);
   bombLight.position.y = 0.6;
   bombGroup.add(bombLight);
@@ -296,7 +367,7 @@ export function createRenderer(state, container) {
     const s = SITES[key];
     const col = new THREE.Mesh(
       new THREE.CylinderGeometry(0.5, 2.2, 14, 16, 1, true),
-      new THREE.MeshBasicMaterial({ color: s.color, transparent: true, opacity: 0.06, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }),
+      new THREE.MeshBasicMaterial({ color: s.color, transparent: true, opacity: 0.09, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }),
     );
     col.position.set(s.cx, 7, s.cz);
     scene.add(col);
@@ -345,17 +416,19 @@ export function createRenderer(state, container) {
       lastVmWeapon = p.weapon;
       const [r, len] = VM_BARREL[p.weapon] || VM_BARREL.p9;
       const barrel = viewmodel.userData.barrel;
-      barrel.scale.set(r / 0.025, len / 0.34, r / 0.025);
-      barrel.position.z = -(0.23 + len / 2);
-      viewmodel.userData.flash.position.z = -(0.28 + len);
+      barrel.scale.set(r / 0.02, len / 0.3, r / 0.02);
+      barrel.position.z = -(0.27 + len / 2);
+      viewmodel.userData.flash.position.z = -(0.32 + len);
+      viewmodel.scale.setScalar(VM_SCALE[p.weapon] || 0.8);
+      viewmodel.userData.stock.visible = p.weapon !== 'p9';
     }
     viewmodel.visible = p.alive && !state.demoCam;
     if (viewmodel.visible) {
       const reloadDip = p.reloadLeft > 0 ? Math.sin(Math.min(1, p.reloadLeft / 0.6) * Math.PI) * 0.25 : 0;
       viewmodel.position.set(
-        0.26 + Math.sin(bobPhase) * bobAmp,
-        -0.24 + Math.abs(Math.cos(bobPhase)) * bobAmp - reloadDip,
-        -0.55 + p.recoil * 1.2,
+        0.3 + Math.sin(bobPhase) * bobAmp,
+        -0.27 + Math.abs(Math.cos(bobPhase)) * bobAmp - reloadDip,
+        -0.72 + p.recoil * 1.2,
       );
       viewmodel.rotation.x = p.recoil * 2.2 - reloadDip * 0.8;
       viewmodel.rotation.z = Math.sin(bobPhase) * bobAmp * 0.4;
@@ -415,18 +488,26 @@ export function createRenderer(state, container) {
       if (f.sprite.visible && now > f.until) f.sprite.visible = false;
     }
 
-    // Tracers.
+    // Tracers: 3 parallel lines each (main + two offset by 0.035 m
+    // perpendicular), so a shot reads as a streak, not a hair.
     const list = state.tracers;
     let n = 0;
     for (let i = 0; i < list.length && n < MAX_TRACERS; i++) {
       const t = list[i];
       if (now > t.until) continue;
-      const o = n * 6;
+      const dx = t.x1 - t.x0, dz = t.z1 - t.z0;
+      const dl = Math.hypot(dx, dz) || 1;
+      const px = (-dz / dl) * 0.035, pz = (dx / dl) * 0.035;
+      const o = n * 18;
       tracerPos[o] = t.x0; tracerPos[o + 1] = t.y0; tracerPos[o + 2] = t.z0;
       tracerPos[o + 3] = t.x1; tracerPos[o + 4] = t.y1; tracerPos[o + 5] = t.z1;
+      tracerPos[o + 6] = t.x0 + px; tracerPos[o + 7] = t.y0; tracerPos[o + 8] = t.z0 + pz;
+      tracerPos[o + 9] = t.x1 + px; tracerPos[o + 10] = t.y1; tracerPos[o + 11] = t.z1 + pz;
+      tracerPos[o + 12] = t.x0 - px; tracerPos[o + 13] = t.y0; tracerPos[o + 14] = t.z0 - pz;
+      tracerPos[o + 15] = t.x1 - px; tracerPos[o + 16] = t.y1; tracerPos[o + 17] = t.z1 - pz;
       n++;
     }
-    tracerGeo.setDrawRange(0, n * 2);
+    tracerGeo.setDrawRange(0, n * 6);
     tracerGeo.attributes.position.needsUpdate = true;
 
     // Impact rings: spawn on new impacts, expand and fade.
@@ -504,6 +585,7 @@ export function createRenderer(state, container) {
       const blink = Math.sin(now * (state.bomb.timer < 10 ? 14 : 6)) > 0;
       beacon.material.color.setHex(blink ? 0xff2222 : 0x550000);
       bombLight.intensity = blink ? 6 : 0;
+      bombRing.material.opacity = blink ? 0.7 : 0.25;
     }
 
     // Site light columns stay; nothing else to sync.

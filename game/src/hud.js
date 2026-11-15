@@ -259,6 +259,7 @@ export function createHud(state, callbacks) {
       else hint = 'Plant the bomb at A or B · E plant · G frag · F smoke · Ctrl crouch';
     }
     setText('hint', hint);
+    show(refs.hint, hint !== '');
 
     // Spectate label.
     if (!p.alive && state.spectate >= 0) {

@@ -289,6 +289,84 @@ export function buildMap(scene) {
     group.add(b);
   }
 
+  // Ground markings: painted arrows at the lane entries, tyre tracks
+  // along mid and oil stains near the containers. Flat decals, no
+  // collision, so bot navigation is untouched.
+  function arrowTexture() {
+    const c = document.createElement('canvas');
+    c.width = 128; c.height = 128;
+    const g = c.getContext('2d');
+    g.clearRect(0, 0, 128, 128);
+    g.fillStyle = 'rgba(240,168,48,0.75)';
+    g.beginPath();
+    g.moveTo(64, 12); g.lineTo(104, 72); g.lineTo(80, 72); g.lineTo(80, 116);
+    g.lineTo(48, 116); g.lineTo(48, 72); g.lineTo(24, 72);
+    g.closePath(); g.fill();
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+  const arrowMat = new THREE.MeshBasicMaterial({ map: arrowTexture(), transparent: true, depthWrite: false });
+  for (const [x, z] of [[0, 22], [-38, 6], [38, 6]]) {
+    const a = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.6), arrowMat);
+    a.rotation.x = -Math.PI / 2;
+    a.position.set(x, 0.02, z);
+    group.add(a);
+  }
+  const trackMat = new THREE.MeshBasicMaterial({ color: 0x3a2f1e, transparent: true, opacity: 0.16, depthWrite: false });
+  for (const [x, z, len] of [[-1.4, 10, 14], [1.4, 10, 14], [-38.6, -2, 12], [-37.4, -2, 12]]) {
+    const t = new THREE.Mesh(new THREE.PlaneGeometry(1.1, len), trackMat);
+    t.rotation.x = -Math.PI / 2;
+    t.position.set(x, 0.018, z);
+    group.add(t);
+  }
+  const stainMat = new THREE.MeshBasicMaterial({ color: 0x1a140c, transparent: true, opacity: 0.28, depthWrite: false });
+  for (const [x, z, r] of [[-26, -27, 1.1], [8, 14, 0.9], [26, -28, 1.2], [0, 0, 0.8]]) {
+    const s = new THREE.Mesh(new THREE.CircleGeometry(r, 20), stainMat);
+    s.rotation.x = -Math.PI / 2;
+    s.position.set(x, 0.018, z);
+    group.add(s);
+  }
+
+  // More dressing: pallets, sandbag rows and tyre stacks. Visual only —
+  // they sit flush to walls or clear of the waypoint lines, so bots never
+  // walk through them.
+  const palletMat = new THREE.MeshStandardMaterial({ color: 0x7d6242, roughness: 0.95 });
+  for (const [x, z, ry] of [[-42, 28, 0.4], [42, -8, -0.3], [-8, -32, 0.1]]) {
+    const p = new THREE.Mesh(boxGeo, palletMat);
+    p.scale.set(1.3, 0.16, 1.1);
+    p.position.set(x, 0.08, z);
+    p.rotation.y = ry;
+    p.castShadow = true;
+    group.add(p);
+    const load = new THREE.Mesh(boxGeo, mats.crate);
+    load.scale.set(1.0, 0.55, 0.85);
+    load.position.set(x, 0.44, z);
+    load.rotation.y = ry;
+    load.castShadow = true;
+    group.add(load);
+  }
+  const sandMat = new THREE.MeshStandardMaterial({ color: 0x6e6248, roughness: 1 });
+  for (const [x, z, ry] of [[2.5, 8, 0], [-2.5, -12, 0], [36, -14, Math.PI / 2]]) {
+    const s = new THREE.Mesh(boxGeo, sandMat);
+    s.scale.set(2.4, 0.55, 0.5);
+    s.position.set(x, 0.28, z);
+    s.rotation.y = ry;
+    s.castShadow = true;
+    group.add(s);
+  }
+  const tyreGeo = new THREE.TorusGeometry(0.34, 0.15, 8, 18);
+  const tyreMat = new THREE.MeshStandardMaterial({ color: 0x1e1e22, roughness: 0.95 });
+  for (const [x, z] of [[-40, -32], [40, 28]]) {
+    for (let i = 0; i < 3; i++) {
+      const t = new THREE.Mesh(tyreGeo, tyreMat);
+      t.rotation.x = Math.PI / 2;
+      t.position.set(x, 0.16 + i * 0.3, z);
+      t.castShadow = true;
+      group.add(t);
+    }
+  }
+
   // Skyline: dark slabs outside the walls for depth at a glance.
   const skyMat = new THREE.MeshStandardMaterial({ color: 0x4a4f57, roughness: 1 });
   const skyline = [

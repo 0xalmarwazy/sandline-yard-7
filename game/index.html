@@ -1,4 +1,31 @@
 <!doctype html>
+<!-- SANDLINE — Yard 7. A complete 5v5 round-based tactical FPS in the
+  browser (three.js 0.187.0, static ES modules, no build step, no network).
+  Vanguard attacks, Jackals defend; first to 5 rounds. Rounds end by
+  elimination, bomb detonation, defuse, or time. Money ($800 start, kill /
+  plant / win bonuses) buys 4 weapons + a frag and a smoke grenade in a
+  buy menu between rounds. The bomb plants in 3 s, defuses in 5 s, ticks
+  35 s. Bots run team plans (split / rush / fake), move in pairs, hold
+  angles, rotate on shared intel, call out on the radio, and smoke site
+  entries; smoke clouds block line of sight for both teams.
+
+  Architecture — one state store, fixed 60 Hz sim apart from rendering:
+  main.js    bootstrap + fixed-step loop (accumulator, 1/60 s slices)
+  state.js   the single store: entities, bomb, projectiles, intel, radio
+  config.js  static data: palette, weapons, map boxes, waypoint graph
+  player.js  accel/friction movement, AABB slide collision, crouch/jump
+  weapons.js fire timing, reload, spread (move + bloom + crouch), recoil
+  combat.js  hitscan vs wall + torso/head spheres, grenades, smoke LOS
+  bots.js    perception (120° sight, hearing), BFS routes, burst fire
+  tactics.js round plans, roles, lanes, shared intel, radio callouts
+  round.js   buy/live/end phases, plant/defuse, economy, match flow
+  render.js  three.js scene, bot meshes, viewmodel, tracers, effects
+  map.js     canvas-textured geometry: walls, sites, signs, skyline
+  hud.js     DOM HUD: health/ammo/timer/score, minimap, buy menu, radio
+  demo.js    menu attract camera + deterministic ?shot= screenshot setups
+  audio.js   procedural WebAudio SFX (no audio files shipped)
+  input.js   keyboard/mouse into state.input; util.js: RNG, math, BFS.
+  The sim never allocates in hot loops: reused buffers, pooled effects. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -83,7 +110,7 @@
   .radio-line.jac { border-left-color: var(--jac); }
 
   /* Bottom left: health + money. */
-  #vitals { position: fixed; left: 24px; bottom: 24px; width: 260px; }
+  #vitals { position: fixed; left: 24px; bottom: 24px; width: 260px; text-shadow: 0 1px 4px rgba(0,0,0,.85), 0 0 2px rgba(0,0,0,.6); }
   #health-row { display: flex; align-items: baseline; gap: 10px; }
   #health-num { font-family: var(--font-readout); font-size: 44px; font-weight: 700; line-height: 1; }
   #health-label { font-size: 12px; color: var(--muted); letter-spacing: .14em; }
@@ -92,7 +119,7 @@
   #money { margin-top: 8px; font-family: var(--font-readout); font-size: 18px; color: var(--accent); }
 
   /* Bottom right: weapon + ammo. */
-  #ammo { position: fixed; right: 28px; bottom: 24px; text-align: right; }
+  #ammo { position: fixed; right: 28px; bottom: 24px; text-align: right; text-shadow: 0 1px 4px rgba(0,0,0,.85), 0 0 2px rgba(0,0,0,.6); }
   #weapon-name { font-size: 13px; letter-spacing: .14em; color: var(--muted); }
   #grenades { font-size: 13px; color: var(--muted); margin-top: 2px; }
   #ammo-row { display: flex; align-items: baseline; justify-content: flex-end; gap: 8px; font-family: var(--font-readout); }

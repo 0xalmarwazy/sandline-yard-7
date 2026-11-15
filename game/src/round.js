@@ -247,6 +247,7 @@ export function stepRound(state, dt) {
     if (state.phaseTime >= ROUND.buyTime) {
       state.phase = 'live';
       state.phaseTime = 0;
+      state.liveAt = state.time;
       state.buyOpen = false;
       setBanner(state, 'PLANT THE BOMB', 'Site A: Warehouse — Site B: Depot', 3);
     }

@@ -47,6 +47,7 @@ export function createState(seed) {
     // Match / round flow.
     phase: 'menu', // menu | buy | live | roundEnd | matchEnd
     phaseTime: 0,
+    liveAt: 0, // state.time when the live phase started (pair stagger clock)
     round: 1,
     roundTimeLeft: ROUND.roundTime,
     score: { van: 0, jac: 0 },
@@ -147,6 +148,9 @@ export function resetRoundEntities(state) {
       e.bot.calloutAt = -10;
       e.bot.rotateAt = 0;
       e.bot.lurkUntil = 0;
+      e.bot.goAt = 0;
+      e.bot.coverCalled = false;
+      e.bot.helpCalled = false;
     }
   }
   state.grenades.length = 0;
