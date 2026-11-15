@@ -25,12 +25,14 @@ export function createInput(state, canvas, onLockChange) {
     if (e.code === 'KeyR') input.reload = true;
     if (e.code === 'KeyB') input.buy = true;
     if (e.code === 'KeyG') input.grenade = true;
+    if (e.code === 'KeyF') input.smoke = true;
     if (e.code === 'KeyM') state.muted = !state.muted;
     if (e.code === 'Digit1') input.slot = 1;
     if (e.code === 'Digit2') input.slot = 2;
     if (e.code === 'Digit3') input.slot = 3;
     if (e.code === 'Digit4') input.slot = 4;
     if (e.code === 'Digit5') input.buyKey = 5;
+    if (e.code === 'Digit6') input.buyKey = 6;
     if (state.buyOpen) {
       if (e.code === 'Digit1') input.buyKey = 1;
       if (e.code === 'Digit2') input.buyKey = 2;
@@ -92,6 +94,7 @@ export function createInput(state, canvas, onLockChange) {
       input.reload = false;
       input.buy = false;
       input.grenade = false;
+      input.smoke = false;
       input.slot = 0;
       input.buyKey = 0;
       input.jump = false;

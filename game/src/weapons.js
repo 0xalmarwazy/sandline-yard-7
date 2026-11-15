@@ -3,7 +3,7 @@
 // Shots are emitted through the onShot callback main.js wires up, so this
 // module never imports combat.js (no import cycle).
 
-import { GRENADE, WEAPONS } from './config.js';
+import { GRENADE, SMOKE, WEAPONS } from './config.js';
 import { clamp } from './util.js';
 import { speedFraction } from './player.js';
 
@@ -108,24 +108,32 @@ export function stepWeapons(state, dt, onShot) {
   }
 }
 
-// Throw a frag grenade along the entity's aim. Returns false when the
+// Throw a grenade along the entity's aim. type is 'frag' (damage) or
+// 'smoke' (a sight-blocking cloud, see combat.js). Returns false when the
 // entity has none left or is mid-reload.
-export function tryThrowGrenade(state, e) {
-  if (e.grenades <= 0 || e.reloadLeft > 0) return false;
-  e.grenades--;
+export function tryThrowGrenade(state, e, type = 'frag') {
+  const def = type === 'smoke' ? SMOKE : GRENADE;
+  if (type === 'smoke') {
+    if (e.smokes <= 0 || e.reloadLeft > 0) return false;
+    e.smokes--;
+  } else {
+    if (e.grenades <= 0 || e.reloadLeft > 0) return false;
+    e.grenades--;
+  }
   e.cooldown = Math.max(e.cooldown, 0.5);
   const pitch = e.pitch - e.recoil;
   const cy = Math.cos(pitch);
   const dir = { x: Math.sin(e.yaw) * cy, y: -Math.sin(pitch), z: -Math.cos(e.yaw) * cy };
   state.grenades.push({
     owner: e.id,
+    kind: type,
     pos: { x: e.pos.x + dir.x * 0.5, y: e.pos.y + 1.4, z: e.pos.z + dir.z * 0.5 },
     vel: {
       x: dir.x * 13 + e.vel.x,
       y: dir.y * 13 + 3.5,
       z: dir.z * 13 + e.vel.z,
     },
-    fuse: GRENADE.fuse,
+    fuse: def.fuse,
   });
   if (e.isPlayer) state.audioHook('throw');
   return true;

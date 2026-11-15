@@ -75,7 +75,8 @@ function step(dt) {
   const p = state.players[0];
   if (p.alive) {
     stepPlayer(state, dt);
-    if (state.input.grenade) tryThrowGrenade(state, p);
+    if (state.input.grenade) tryThrowGrenade(state, p, 'frag');
+    if (state.input.smoke) tryThrowGrenade(state, p, 'smoke');
   } else if (state.input.firePressed && state.spectate >= 0) {
     // Click while dead cycles the spectate target.
     const team = state.players.filter((e) => e.team === p.team && e.alive && !e.isPlayer);
@@ -92,6 +93,8 @@ function step(dt) {
   prune(state.tracers);
   prune(state.impacts);
   prune(state.noises);
+  prune(state.smoke);
+  prune(state.callouts);
   input.clearTransient();
 }
 
@@ -127,5 +130,5 @@ requestAnimationFrame(frame);
 window.__sandline = {
   state,
   step: (n) => { for (let i = 0; i < n; i++) step(STEP); },
-  version: 'yard7-1.0.0',
+  version: 'yard7-2.0.0',
 };

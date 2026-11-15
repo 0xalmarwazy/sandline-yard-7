@@ -2,7 +2,7 @@
 // Bodies are two spheres (torso + head) so headshots fall out of the same
 // ray test as body hits. Walls are tested first: a wall always wins.
 
-import { ECON, GRENADE, WALLS } from './config.js';
+import { ECON, GRENADE, SMOKE, WALLS } from './config.js';
 import { eyePos } from './player.js';
 import { pushFeed } from './state.js';
 import { rayBox, raySphere, segmentHitsBox } from './util.js';
@@ -69,6 +69,8 @@ export function resolveShot(state, shooter, def, dir) {
       if (hit.head) state.stats.headshots++;
       state.audioHook(hit.head ? 'headshot' : 'hit');
     }
+    // A red impact ring marks a flesh hit (the renderer reads `color`).
+    state.impacts.push({ x: hit.x, y: hit.y, z: hit.z, until: state.time + 0.2, color: 0xff5555 });
     applyDamage(state, hit.entity, dmg, shooter, hit.head);
   } else if (hit.wall && hit.dist < def.range) {
     state.impacts.push({ x: hit.x, y: hit.y, z: hit.z, until: state.time + 0.25 });
@@ -87,6 +89,12 @@ export function applyDamage(state, target, amount, attacker, head) {
       const dz = attacker.pos.z - target.pos.z;
       state.damageFromYaw = Math.atan2(dx, -dz);
       state.damageFlash = 1;
+    }
+    if (attacker.isPlayer) {
+      // Hitmarker for the HUD: flash on hit, red on a kill.
+      state.hitmark.at = state.time;
+      state.hitmark.head = !!head;
+      state.hitmark.kill = target.health <= 0;
     }
   }
   if (target.health <= 0) {
@@ -146,7 +154,16 @@ export function stepGrenades(state, dt) {
       }
     }
     if (g.fuse <= 0) {
-      explodeGrenade(state, g);
+      if (g.kind === 'smoke') {
+        // Bloom into a cloud that blocks line of sight for both teams.
+        state.smoke.push({
+          x: g.pos.x, z: g.pos.z, r: SMOKE.radius,
+          born: state.time, until: state.time + SMOKE.life,
+        });
+        state.noises.push({ x: g.pos.x, z: g.pos.z, radius: 14, until: state.time + 0.5 });
+      } else {
+        explodeGrenade(state, g);
+      }
       list.splice(i, 1);
     }
   }
@@ -175,7 +192,8 @@ function explodeGrenade(state, g) {
   }
 }
 
-// Line of sight between two points: any tall wall on the segment blocks it.
+// Line of sight between two points: any tall wall on the segment blocks
+// it, and so does a smoke cloud the segment crosses.
 export function hasLineOfSight(ax, az, bx, bz) {
   for (let i = 0; i < WALLS.length; i++) {
     const b = WALLS[i];
@@ -183,4 +201,27 @@ export function hasLineOfSight(ax, az, bx, bz) {
     if (segmentHitsBox(ax, az, bx, bz, b)) return false;
   }
   return true;
+}
+
+// Smoke-aware sight: hasLineOfSight plus the live smoke clouds. Bots and
+// the player's own sight checks use this; the pure wall test stays for
+// movement decisions that smoke must not affect.
+export function hasClearSight(state, ax, az, bx, bz) {
+  if (!hasLineOfSight(ax, az, bx, bz)) return false;
+  for (let i = 0; i < state.smoke.length; i++) {
+    const c = state.smoke[i];
+    if (state.time > c.until) continue;
+    if (segmentHitsCircle(ax, az, bx, bz, c.x, c.z, c.r)) return false;
+  }
+  return true;
+}
+
+// 2D segment vs circle: true when the segment passes within r of (cx, cz).
+function segmentHitsCircle(ax, az, bx, bz, cx, cz, r) {
+  const dx = bx - ax, dz = bz - az;
+  const len2 = dx * dx + dz * dz;
+  let t = len2 > 0 ? ((cx - ax) * dx + (cz - az) * dz) / len2 : 0;
+  t = t < 0 ? 0 : t > 1 ? 1 : t;
+  const px = ax + dx * t - cx, pz = az + dz * t - cz;
+  return px * px + pz * pz < r * r;
 }

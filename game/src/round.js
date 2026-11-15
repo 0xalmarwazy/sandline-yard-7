@@ -2,9 +2,9 @@
 // and the match. One step function drives the phase machine; the buy menu
 // and the bomb channel live here because both are round rules, not combat.
 
-import { ECON, GRENADE, ROUND, SITES, WEAPONS } from './config.js';
+import { ECON, ROUND, SITES, WEAPONS } from './config.js';
 import { applyDamage } from './combat.js';
-import { assignBotPlans } from './bots.js';
+import { assignTeamPlans, callout } from './tactics.js';
 import { aliveCount, playerOf, pushFeed, resetRoundEntities, setBanner } from './state.js';
 
 export const BUY_ITEMS = [
@@ -13,6 +13,7 @@ export const BUY_ITEMS = [
   { key: 3, id: 'vk47', name: 'VK-47 Rifle', price: 2700, desc: 'Hard-hitting automatic rifle' },
   { key: 4, id: 'frag', name: 'HE-1 Frag', price: 300, desc: 'Grenade — throw with G' },
   { key: 5, id: 'ammo', name: 'Ammo refill', price: 150, desc: 'Full reserve for your current weapon' },
+  { key: 6, id: 'smoke', name: 'SM-2 Smoke', price: 300, desc: 'Smoke cloud, blocks sight — throw with F' },
 ];
 
 export function startMatch(state) {
@@ -27,6 +28,7 @@ export function startMatch(state) {
     e.owned = { p9: true, k9: false, vk47: false, m870: false };
     e.weapon = 'p9';
     e.grenades = 0;
+    e.smokes = 0;
   }
   state.stats.shots = 0;
   state.stats.hits = 0;
@@ -36,7 +38,7 @@ export function startMatch(state) {
 
 export function startRound(state) {
   resetRoundEntities(state);
-  assignBotPlans(state);
+  assignTeamPlans(state);
   buyBotLoadouts(state);
   state.phase = 'buy';
   state.phaseTime = 0;
@@ -44,7 +46,9 @@ export function startRound(state) {
   state.roundWinner = null;
   state.roundReason = '';
   state.buyOpen = true;
-  setBanner(state, `ROUND ${state.round}`, 'Buy your gear — press B to close', 3);
+  const plan = state.plan;
+  const planLine = plan ? `Plan: ${plan.name} — site ${plan.site}` : 'Buy your gear — press B to close';
+  setBanner(state, `ROUND ${state.round}`, planLine, 3);
   state.audioHook('roundStart');
 }
 
@@ -65,6 +69,7 @@ function buyBotLoadouts(state) {
       e.reserve[pick] = WEAPONS[pick].reserve;
     }
     if (r >= 2 && rng() < 0.6) e.grenades = 1;
+    if (r >= 2 && rng() < 0.4) e.smokes = 1;
   }
 }
 
@@ -79,6 +84,9 @@ export function buyItem(state, key) {
   if (item.id === 'frag') {
     if (p.grenades >= 2) { state.audioHook('deny'); return false; }
     p.grenades++;
+  } else if (item.id === 'smoke') {
+    if (p.smokes >= 2) { state.audioHook('deny'); return false; }
+    p.smokes++;
   } else if (item.id === 'ammo') {
     const def = WEAPONS[p.weapon];
     if (p.reserve[p.weapon] >= def.reserve) { state.audioHook('deny'); return false; }
@@ -139,6 +147,7 @@ function stepBomb(state, dt) {
         if (planter.isPlayer) state.money = Math.min(state.money + ECON.plantBonus, ECON.maxMoney);
         setBanner(state, 'BOMB PLANTED', `Site ${site.id} — ${ROUND.bombTime}s to detonation`, 3);
         pushFeed(state, `Bomb planted at ${site.id}`, 'van');
+        if (!planter.isPlayer) callout(state, planter, 'planted', `site ${site.id}`);
         state.audioHook('planted');
       }
     } else {
@@ -177,6 +186,7 @@ function stepBomb(state, dt) {
     if (bomb.channeler !== defuser.id) {
       bomb.channeler = defuser.id;
       state.audioHook('defuseStart');
+      if (!defuser.isPlayer) callout(state, defuser, 'defusing');
     }
     bomb.defuseProgress += dt / ROUND.defuseTime;
     if (bomb.defuseProgress >= 1) {
@@ -232,7 +242,7 @@ export function stepRound(state, dt) {
 
   if (state.phase === 'buy') {
     if (input.buy) state.buyOpen = !state.buyOpen;
-    if (input.buyKey >= 1 && input.buyKey <= 5) buyItem(state, input.buyKey);
+    if (input.buyKey >= 1 && input.buyKey <= 6) buyItem(state, input.buyKey);
     state.phaseTime += dt;
     if (state.phaseTime >= ROUND.buyTime) {
       state.phase = 'live';

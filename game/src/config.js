@@ -26,6 +26,11 @@ export const TEAMS = {
   jac: { name: 'Jackals', short: 'JAC', color: PALETTE.jac, attacks: false },
 };
 
+// Team size, in one place: the player plus BOT_NAMES.van bots on Vanguard,
+// BOT_NAMES.jac bots on Jackals. Both lists must hold TEAM_SIZE - 1 and
+// TEAM_SIZE names respectively.
+export const TEAM_SIZE = 5;
+
 // Weapons. damage is per pellet; headMult multiplies on a head hit.
 export const WEAPONS = {
   p9: {
@@ -51,6 +56,9 @@ export const WEAPONS = {
 };
 export const WEAPON_ORDER = ['p9', 'k9', 'm870', 'vk47'];
 export const GRENADE = { id: 'frag', name: 'HE-1 Frag', price: 300, radius: 7, damage: 90, fuse: 2.2 };
+// Smoke: no damage — it blooms into a cloud that blocks line of sight for
+// both teams (see combat.js hasLineOfSight). A site-entry tool.
+export const SMOKE = { id: 'smoke', name: 'SM-2 Smoke', price: 300, radius: 4.5, fuse: 1.6, life: 13 };
 
 // Money and round economy.
 export const ECON = {
@@ -119,6 +127,16 @@ export const WALLS = [
   { x0: 35.5, z0: -20.5, x1: 36.5, z1: -19.5, h: 1.1, kind: 'crate' },
   { x0: -1, z0: 25.5, x1: 1, z1: 26.5, h: 1.1, kind: 'crate' },
   { x0: -1, z0: -26.5, x1: 1, z1: -25.5, h: 1.1, kind: 'crate' },
+  // v2 cover: two more containers and low sandbag walls near the mid and
+  // site approaches. Each was checked against every waypoint edge: no edge
+  // segment passes through any of these boxes (see the nav check in the
+  // repo's test notes), so bot routes stay walkable.
+  { x0: 14, z0: 22, x1: 18, z1: 24.5, h: 2.6, kind: 'containerB' },
+  { x0: -18, z0: -28, x1: -14, z1: -25.5, h: 2.6, kind: 'containerA' },
+  { x0: 5, z0: 10, x1: 9, z1: 11, h: 1.1, kind: 'crate' },
+  { x0: -9, z0: -2, x1: -5, z1: -1, h: 1.1, kind: 'crate' },
+  { x0: 26, z0: -14, x1: 28, z1: -13, h: 1.1, kind: 'crate' },
+  { x0: -28, z0: -14, x1: -26, z1: -13, h: 1.1, kind: 'crate' },
 ];
 
 // Bomb sites: plant zones on the ground.
@@ -130,13 +148,17 @@ export const SITES = {
 export const SPAWNS = {
   van: [
     { x: -6, z: 28, yaw: 0 },
-    { x: -10, z: 27, yaw: 0 },
-    { x: -2, z: 27, yaw: 0 },
+    { x: -11, z: 27, yaw: 0 },
+    { x: -1, z: 27, yaw: 0 },
+    { x: -16, z: 26, yaw: 0 },
+    { x: 4, z: 26, yaw: 0 },
   ],
   jac: [
     { x: 6, z: -28, yaw: Math.PI },
     { x: 2, z: -27, yaw: Math.PI },
     { x: 10, z: -27, yaw: Math.PI },
+    { x: 14, z: -26, yaw: Math.PI },
+    { x: -2, z: -26, yaw: Math.PI },
   ],
 };
 
@@ -180,8 +202,8 @@ export const EDGES = [
 ];
 
 export const BOT_NAMES = {
-  van: ['Rook', 'Sable'],
-  jac: ['Vex', 'Mira', 'Dusk'],
+  van: ['Rook', 'Sable', 'Ash', 'Flint'],
+  jac: ['Vex', 'Mira', 'Dusk', 'Nyx', 'Onyx'],
 };
 
 // Defender hold spots: waypoint + facing yaw (radians, 0 = north/-z).
