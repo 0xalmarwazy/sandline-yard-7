@@ -78,7 +78,7 @@ export function createState(seed) {
     // Radio callouts from bots: {text, team, until} — the HUD shows them
     // in their own panel so team coordination is visible to the player.
     callouts: [],
-    calloutAt: { van: 0, jac: 0 }, // team-wide radio throttle (seconds)
+    calloutAt: { van: -10, jac: -10 }, // team-wide radio throttle (seconds); -10 so the first callout is never throttled
     // This round's attack plan {name, site}, set by tactics.js.
     plan: null,
     // Team-shared intel: each team's latest known enemy position
@@ -144,7 +144,7 @@ export function resetRoundEntities(state) {
       e.bot.decideAt = 0;
       e.bot.role = 'entry';
       e.bot.planSite = 'A';
-      e.bot.calloutAt = 0;
+      e.bot.calloutAt = -10;
       e.bot.rotateAt = 0;
       e.bot.lurkUntil = 0;
     }
@@ -158,8 +158,8 @@ export function resetRoundEntities(state) {
   state.intel.van = null;
   state.intel.jac = null;
   state.plan = null;
-  state.calloutAt.van = 0;
-  state.calloutAt.jac = 0;
+  state.calloutAt.van = -10;
+  state.calloutAt.jac = -10;
   state.hitmark.at = -1;
   state.bomb.state = 'idle';
   state.bomb.site = null;

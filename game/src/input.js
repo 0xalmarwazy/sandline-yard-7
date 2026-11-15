@@ -83,7 +83,10 @@ export function createInput(state, canvas, onLockChange) {
   return {
     requestLock() {
       if (document.pointerLockElement !== canvas) {
-        canvas.requestPointerLock();
+        // Returns a promise in modern Chrome; it rejects without a user
+        // gesture (or in headless) — swallow it, the game still plays.
+        const p = canvas.requestPointerLock();
+        if (p && p.catch) p.catch(() => {});
       }
     },
     releaseLock() {

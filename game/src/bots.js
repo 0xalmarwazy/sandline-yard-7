@@ -30,7 +30,7 @@ export function initBots(state) {
       site: 'A', lane: 'mid',
       // Team plan, written by tactics.js each round.
       role: 'entry', planSite: 'A', via: [],
-      calloutAt: 0, rotateAt: 0, lurkUntil: 0,
+      calloutAt: -10, rotateAt: 0, lurkUntil: 0,
       stuckAt: 0, lastX: 0, lastZ: 0,
       throwAt: 0,
     };

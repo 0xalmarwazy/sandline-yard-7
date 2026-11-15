@@ -91,6 +91,12 @@ export function applyShot(state, shot) {
     place(dusk, 8, -16, Math.PI + 0.2);
     place(nyx, -2, -18, Math.PI);
     place(onyx, 12, -10, Math.PI + 0.5);
+    // Everyone holds: the staged bots must not walk through the frame
+    // during the seconds before the capture.
+    holdBot(rook, 0);
+    holdBot(sable, 0);
+    holdBot(ash, 0);
+    holdBot(flint, 0);
     holdBot(vex, Math.PI);
     holdBot(mira, Math.PI);
     holdBot(dusk, Math.PI);
