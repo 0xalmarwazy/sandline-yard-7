@@ -232,13 +232,12 @@ export function buildMap(scene) {
   addSign('WAREHOUSE A', '#2dd4bf', 2.8, 0.7, -30.94, 1.9, -26.5, Math.PI / 2);
   addSign('DEPOT B', '#f59e0b', 2.8, 0.7, 30.94, 1.9, -26.5, -Math.PI / 2);
 
-  // Stacked containers: a second box on top of three ground containers.
-  // Visual only — the collision box underneath is unchanged, so bot
-  // navigation is unaffected (bullets pass through the top box, as they
-  // do the barrels).
+  // Stacked containers: a second box on top of four ground containers.
+  // Visual only — collision is unchanged, so bot navigation is
+  // unaffected (bullets pass through the top box, as with barrels).
   const stackMatA = tiledMaterial(ribs, 2, 1, PALETTE.containerA);
   const stackMatB = tiledMaterial(ribs, 2, 1, PALETTE.containerB);
-  for (const [x, z, mat] of [[-26, -29.75, stackMatA], [26, -29.75, stackMatB], [8, 15.25, stackMatA]]) {
+  for (const [x, z, mat] of [[-26, -29.75, stackMatA], [26, -29.75, stackMatB], [8, 15.25, stackMatA], [-8, -14.75, stackMatB]]) {
     const m = new THREE.Mesh(boxGeo, mat);
     m.scale.set(4, 2.6, 2.5);
     m.position.set(x, 2.6 + 1.3, z);
@@ -272,8 +271,8 @@ export function buildMap(scene) {
     mkBorder(0.7, d, s.x1 - 0.35, s.cz);
   }
 
-  // Barrels: visual cover dressing near lanes (no collision: they sit flush
-  // against walls or in open spots the waypoints avoid).
+  // Barrels: visual cover dressing near lanes (no collision: flush
+  // against walls or in spots the waypoints avoid).
   const barrelGeo = new THREE.CylinderGeometry(0.42, 0.42, 1.05, 12);
   const barrelMat = new THREE.MeshStandardMaterial({ color: 0x7a2e2e, roughness: 0.8, metalness: 0.2 });
   const barrelMat2 = new THREE.MeshStandardMaterial({ color: 0x2e5a7a, roughness: 0.8, metalness: 0.2 });
@@ -281,6 +280,7 @@ export function buildMap(scene) {
     [-42, -12, 0], [-42, -10.8, 1], [42, 10, 1], [42, 11.2, 0],
     [-12, 30, 0], [14, 30, 1], [-14, -30, 1], [12, -30, 0],
     [-6, 26, 1], [8, -26, 0],
+    [6, -8, 0], [-6, -8, 1], [5, 15, 1], [-5, 15, 0],
   ];
   for (const [x, z, v] of barrels) {
     const b = new THREE.Mesh(barrelGeo, v === 0 ? barrelMat : barrelMat2);
@@ -289,9 +289,8 @@ export function buildMap(scene) {
     group.add(b);
   }
 
-  // Ground markings: painted arrows at the lane entries, tyre tracks
-  // along mid and oil stains near the containers. Flat decals, no
-  // collision, so bot navigation is untouched.
+  // Ground markings: painted arrows at lane entries, tyre tracks along
+  // mid, oil stains near containers. Flat decals, no collision.
   function arrowTexture() {
     const c = document.createElement('canvas');
     c.width = 128; c.height = 128;
@@ -328,9 +327,8 @@ export function buildMap(scene) {
     group.add(s);
   }
 
-  // More dressing: pallets, sandbag rows and tyre stacks. Visual only —
-  // they sit flush to walls or clear of the waypoint lines, so bots never
-  // walk through them.
+  // More dressing: pallets, sandbag rows, tyre stacks. Visual only —
+  // flush to walls or clear of the waypoint lines.
   const palletMat = new THREE.MeshStandardMaterial({ color: 0x7d6242, roughness: 0.95 });
   for (const [x, z, ry] of [[-42, 28, 0.4], [42, -8, -0.3], [-8, -32, 0.1]]) {
     const p = new THREE.Mesh(boxGeo, palletMat);

@@ -12,7 +12,6 @@ export function mulberry32(seed) {
 }
 
 export const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
-export const lerp = (a, b, t) => a + (b - a) * t;
 
 // Shortest-arc angle difference, in (-PI, PI].
 export function angleDelta(a, b) {

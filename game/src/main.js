@@ -1,8 +1,8 @@
-// SANDLINE — Yard 7. Bootstrap and the game loop.
-// The simulation runs at a fixed 60 Hz step, decoupled from rendering:
-// the loop accumulates real time and steps the sim in 1/60 s slices, then
-// renders once. All wiring lives here; modules never import each other in
-// a cycle (weapons fires through a callback into combat).
+// SANDLINE — Yard 7. Bootstrap and the game loop. The sim runs at a
+// fixed 60 Hz step, decoupled from rendering: the loop accumulates
+// real time, steps in 1/60 s slices, then renders once. All wiring
+// lives here; modules never import each other in a cycle (weapons
+// fires through a callback into combat).
 
 import { createAudioHook, unlockAudio } from './audio.js';
 import { initBots, stepBots } from './bots.js';
@@ -12,7 +12,7 @@ import { createHud } from './hud.js';
 import { createInput } from './input.js';
 import { stepPlayer } from './player.js';
 import { createRenderer } from './render.js';
-import { startMatch, startRound, stepRound } from './round.js';
+import { startMatch, stepRound } from './round.js';
 import { createState } from './state.js';
 import { stepWeapons, tryThrowGrenade } from './weapons.js';
 
@@ -70,7 +70,7 @@ function step(dt) {
   // the tracers, flashes and radio in the screenshots are the live sim.
   if (state.demo) {
     const p0 = state.players[0];
-    p0.health = 100; p0.alive = true; state.damageFlash = 0;
+    p0.health = 100; p0.alive = true;
   }
 
   stepRound(state, dt);
@@ -96,6 +96,9 @@ function step(dt) {
   stepBots(state, dt);
   stepWeapons(state, dt, (shooter, def, dir) => resolveShot(state, shooter, def, dir));
   stepGrenades(state, dt);
+  // A staged shot must not catch a damage flash: bots shoot during the
+  // step, so clear it here, after the sim, before the HUD reads it.
+  if (state.demo) state.damageFlash = 0;
 
   // Prune expired short-lived lists (bounded, in place).
   prune(state.tracers);
@@ -133,10 +136,10 @@ function frame(now) {
 }
 requestAnimationFrame(frame);
 
-// Debug handle for automated checks (not part of the game): lets a test
-// drive read state, step the sim and inject input without a real mouse.
+// Debug handle for automated checks (not part of the game): lets a
+// test read state, step the sim, inject input — no real mouse.
 window.__sandline = {
   state,
   step: (n) => { for (let i = 0; i < n; i++) step(STEP); },
-  version: 'yard7-3.0.0',
+  version: 'yard7-4.0.0',
 };

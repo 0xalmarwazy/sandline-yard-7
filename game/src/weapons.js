@@ -1,22 +1,22 @@
-// Weapons: fire timing, reload, spread and recoil. This module decides
-// WHEN a shot happens and WHERE it goes; combat.js decides WHAT it hits.
-// Shots are emitted through the onShot callback main.js wires up, so this
-// module never imports combat.js (no import cycle).
+// Weapons: fire timing, reload, spread, recoil. This module decides
+// WHEN a shot happens and WHERE it goes; combat.js decides WHAT it
+// hits. Shots go through the onShot callback main.js wires up, so
+// this module never imports combat.js (no import cycle).
 
 import { GRENADE, SMOKE, WEAPONS } from './config.js';
-import { clamp } from './util.js';
 import { speedFraction } from './player.js';
+import { callout } from './tactics.js';
 
-// Current spread in radians: base + movement penalty + bloom from firing.
-// Crouching and standing still are rewarded; running and spraying are not.
+// Current spread in radians: base + movement penalty + bloom.
+// Crouching and standing still are rewarded; spraying is not.
 export function spreadFor(e, def) {
   const move = speedFraction(e);
   const crouchBonus = e.crouched ? 0.6 : 1;
   return (def.spread + def.moveSpread * move + e.bloom + e.aimErr) * crouchBonus;
 }
 
-// Aim direction from yaw/pitch plus recoil kick and a random cone offset.
-// Writes into out ({x,y,z}) and returns it. No allocation.
+// Aim direction from yaw/pitch plus recoil kick and a random cone
+// offset. Writes into out ({x,y,z}); no allocation.
 export function aimDirection(e, spread, rng, out) {
   const pitch = e.pitch - e.recoil; // recoil kicks the muzzle up
   const cy = Math.cos(pitch);
@@ -74,8 +74,8 @@ function fireOne(state, e, def, onShot) {
   state.noises.push({ x: e.pos.x, z: e.pos.z, radius: 26, until: state.time + 0.6 });
 }
 
-// Per-tick weapon update for every living entity. Bots signal through
-// bot.wantFire (held trigger) and bot.wantShot (one trigger pull).
+// Per-tick weapon update for every living entity. Bots signal via
+// bot.wantFire (held trigger) and bot.wantShot (one pull).
 export function stepWeapons(state, dt, onShot) {
   for (const e of state.players) {
     if (!e.alive) continue;
@@ -99,7 +99,12 @@ export function stepWeapons(state, dt, onShot) {
       held = e.bot.wantFire;
       pulse = e.bot.wantShot;
       e.bot.wantShot = false;
-      if (e.mag[e.weapon] === 0) startReload(state, e);
+      // Bots reload the moment the mag runs dry — and say so, so the
+      // team knows who is out of the fight for two seconds.
+      if (e.mag[e.weapon] === 0 && e.reloadLeft <= 0) {
+        startReload(state, e);
+        if (e.reloadLeft > 0) callout(state, e, 'reload');
+      }
     }
     const want = def.auto ? held : pulse;
     if (want && e.cooldown <= 0 && e.mag[e.weapon] > 0) {
@@ -108,9 +113,9 @@ export function stepWeapons(state, dt, onShot) {
   }
 }
 
-// Throw a grenade along the entity's aim. type is 'frag' (damage) or
-// 'smoke' (a sight-blocking cloud, see combat.js). Returns false when the
-// entity has none left or is mid-reload.
+// Throw a grenade along the entity's aim: 'frag' (damage) or 'smoke'
+// (a sight-blocking cloud, see combat.js). False when the entity has
+// none left or is mid-reload.
 export function tryThrowGrenade(state, e, type = 'frag') {
   const def = type === 'smoke' ? SMOKE : GRENADE;
   if (type === 'smoke') {

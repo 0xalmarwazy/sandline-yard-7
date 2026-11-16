@@ -1,6 +1,6 @@
-// Round flow: buy phase, live play, plant/defuse, win conditions, money,
-// and the match. One step function drives the phase machine; the buy menu
-// and the bomb channel live here because both are round rules, not combat.
+// Round flow: buy phase, live play, plant/defuse, win conditions,
+// money, the match. One step function drives the phase machine; the
+// buy menu and bomb channel live here — round rules, not combat.
 
 import { ECON, ROUND, SITES, WEAPONS } from './config.js';
 import { applyDamage } from './combat.js';

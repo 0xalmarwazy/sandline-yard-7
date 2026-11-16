@@ -1,15 +1,13 @@
-// Team tactics: round plans, roles, radio callouts and shared intel.
-// One module owns everything a bot does *as a teammate* so bots.js stays
-// about one bot's own senses and movement. This module never moves a bot
-// itself: it writes plan fields on the bot (role, lane, via, lurkUntil,
-// holdWp) and bots.js executes them. No import cycle: bots.js imports the
-// callout/intel helpers from here; this module imports no bot code.
+// Team tactics: round plans, roles, radio callouts, shared intel. One
+// module owns everything a bot does *as a teammate*; it writes plan
+// fields on the bot (role, lane, via, lurkUntil, holdWp) and bots.js
+// executes them. No import cycle: bots.js imports the helpers here.
 
 import { HOLD_SPOTS, SITES } from './config.js';
 import { pushCallout } from './state.js';
 
-// Lane waypoint chains: [entry, ...site]. A bot routes through the chain
-// in order, so a lane choice is a real path, not a hint.
+// Lane waypoint chains [entry, ...site]: a bot routes through the
+// chain in order, so a lane choice is a real path.
 const LANES = {
   west: { entry: 2, toA: [2, 4], toB: [2, 17, 8, 13, 12] },
   mid: { entry: 7, toA: [7, 5, 4], toB: [7, 8, 13, 12] },
@@ -49,14 +47,11 @@ export function shareIntel(state, team, x, z) {
   state.intel[team] = { x, z, at: state.time };
 }
 
-// One radio callout, throttled per bot (6 s) and per team (1.5 s) so the
-// feed stays readable. kind picks the sentence; detail fills it in.
-// `entity` is the bot entity (its brain holds the throttle). Returns true
-// when the callout actually fired — callers that only say something once
-// (cover, help) set their flag only on a real fire, not a throttled try.
-// Those one-shot callouts bypass the per-bot throttle (they fire at most
-// once per round each, so they cannot spam) but still respect the team
-// one — a bot that just called contact can still cover the plant.
+// One radio callout, throttled per bot (6 s) and per team (1.5 s).
+// kind picks the sentence; detail fills it in. Returns true when it
+// actually fired — one-shot callers (cover, help) set their flag only
+// on a real fire. One-shots bypass the per-bot throttle (they fire at
+// most once per round) but respect the team one.
 export function callout(state, entity, kind, detail) {
   const now = state.time;
   const b = entity.bot;
@@ -73,6 +68,7 @@ export function callout(state, entity, kind, detail) {
   else if (kind === 'cover') text = `${entity.name}: Covering plant — watch ${detail}`;
   else if (kind === 'smoke') text = `${entity.name}: Smoking ${detail} entry`;
   else if (kind === 'help') text = `${entity.name}: Hurt at ${detail} — need help`;
+  else if (kind === 'reload') text = `${entity.name}: Reloading — cover me`;
   else return false;
   b.calloutAt = now + 6;
   state.calloutAt[entity.team] = now;
@@ -98,12 +94,10 @@ function shuffle(rng, arr) {
   return arr;
 }
 
-// Round setup: pick the attackers' plan and give every bot a role, a lane
-// and a waypoint chain. Plans rotate so no two rounds play the same.
-//   split: two pairs, two lanes — the second bot in each pair follows
-//     2.5 s behind its leader, so the team moves in pairs.
-//   rush:  all four through one lane, entries first, planter last.
-//   fake:  three bots show at the off-site, then swing to the real one.
+// Round setup: pick the attackers' plan; give every bot a role, a lane
+// and a waypoint chain. split: two pairs on two lanes, the second bot
+// 2.5 s behind its leader. rush: all four through one lane. fake:
+// three bots show at the off-site, then swing to the real one.
 export function assignTeamPlans(state) {
   const rng = state.rng;
   const site = rng() < 0.5 ? 'A' : 'B';

@@ -1,6 +1,6 @@
-// Combat: hitscan raycasts, damage, grenades and explosions.
-// Bodies are two spheres (torso + head) so headshots fall out of the same
-// ray test as body hits. Walls are tested first: a wall always wins.
+// Combat: hitscan raycasts, damage, grenades, explosions. Bodies are
+// two spheres (torso + head), so headshots fall out of the same ray
+// test as body hits. Walls are tested first: a wall always wins.
 
 import { ECON, GRENADE, SMOKE, WALLS } from './config.js';
 import { eyePos } from './player.js';
@@ -10,8 +10,8 @@ import { rayBox, raySphere, segmentHitsBox } from './util.js';
 const _origin = { x: 0, y: 0, z: 0 };
 const _dir = { x: 0, y: 0, z: 0 };
 
-// Cast one hitscan pellet from shooter's eye along dir. Returns a hit record
-// reused across calls (callers read it before the next cast).
+// Cast one hitscan pellet from the shooter's eye along dir. Returns
+// a hit record reused across calls (read it before the next cast).
 const _hit = { entity: null, head: false, dist: 0, x: 0, y: 0, z: 0 };
 export function raycastShot(state, shooter, dir, maxRange) {
   eyePos(shooter, _origin);
@@ -69,8 +69,10 @@ export function resolveShot(state, shooter, def, dir) {
       if (hit.head) state.stats.headshots++;
       state.audioHook(hit.head ? 'headshot' : 'hit');
     }
-    // A red impact ring marks a flesh hit (the renderer reads `color`).
-    state.impacts.push({ x: hit.x, y: hit.y, z: hit.z, until: state.time + 0.2, color: 0xff5555 });
+    // A red impact ring marks a flesh hit (the renderer reads `color`) —
+    // except on the player, where the ring would spawn at the camera and
+    // sweep the whole screen as it expands.
+    if (!hit.entity.isPlayer) state.impacts.push({ x: hit.x, y: hit.y, z: hit.z, until: state.time + 0.2, color: 0xff5555 });
     applyDamage(state, hit.entity, dmg, shooter, hit.head);
   } else if (hit.wall && hit.dist < def.range) {
     state.impacts.push({ x: hit.x, y: hit.y, z: hit.z, until: state.time + 0.25 });
@@ -123,8 +125,8 @@ export function applyDamage(state, target, amount, attacker, head) {
   }
 }
 
-// Grenade physics: gravity, ground bounce, fuse, radial damage with falloff
-// and a wall check so cover actually protects.
+// Grenade physics: gravity, ground bounce, fuse, radial damage with
+// falloff and a wall check so cover protects.
 export function stepGrenades(state, dt) {
   const list = state.grenades;
   for (let i = list.length - 1; i >= 0; i--) {
@@ -192,8 +194,8 @@ function explodeGrenade(state, g) {
   }
 }
 
-// Line of sight between two points: any tall wall on the segment blocks
-// it, and so does a smoke cloud the segment crosses.
+// Line of sight: any tall wall on the segment blocks it, and so
+// does a smoke cloud the segment crosses.
 export function hasLineOfSight(ax, az, bx, bz) {
   for (let i = 0; i < WALLS.length; i++) {
     const b = WALLS[i];
@@ -203,9 +205,9 @@ export function hasLineOfSight(ax, az, bx, bz) {
   return true;
 }
 
-// Smoke-aware sight: hasLineOfSight plus the live smoke clouds. Bots and
-// the player's own sight checks use this; the pure wall test stays for
-// movement decisions that smoke must not affect.
+// Smoke-aware sight: hasLineOfSight plus the live smoke clouds. Bots
+// use this; the pure wall test stays for movement decisions smoke
+// must not affect.
 export function hasClearSight(state, ax, az, bx, bz) {
   if (!hasLineOfSight(ax, az, bx, bz)) return false;
   for (let i = 0; i < state.smoke.length; i++) {

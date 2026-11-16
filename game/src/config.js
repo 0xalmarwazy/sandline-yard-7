@@ -26,9 +26,8 @@ export const TEAMS = {
   jac: { name: 'Jackals', short: 'JAC', color: PALETTE.jac, attacks: false },
 };
 
-// Team size, in one place: the player plus BOT_NAMES.van bots on Vanguard,
-// BOT_NAMES.jac bots on Jackals. Both lists must hold TEAM_SIZE - 1 and
-// TEAM_SIZE names respectively.
+// Team size, in one place: the player plus BOT_NAMES.van bots on
+// Vanguard, BOT_NAMES.jac bots on Jackals.
 export const TEAM_SIZE = 5;
 
 // Weapons. damage is per pellet; headMult multiplies on a head hit.
@@ -56,8 +55,8 @@ export const WEAPONS = {
 };
 export const WEAPON_ORDER = ['p9', 'k9', 'm870', 'vk47'];
 export const GRENADE = { id: 'frag', name: 'HE-1 Frag', price: 300, radius: 7, damage: 90, fuse: 2.2 };
-// Smoke: no damage — it blooms into a cloud that blocks line of sight for
-// both teams (see combat.js hasLineOfSight). A site-entry tool.
+// Smoke: no damage — it blooms into a cloud blocking line of sight
+// for both teams (combat.js hasLineOfSight). A site-entry tool.
 export const SMOKE = { id: 'smoke', name: 'SM-2 Smoke', price: 300, radius: 4.5, fuse: 1.6, life: 13 };
 
 // Money and round economy.
@@ -75,8 +74,8 @@ export const MOVE = {
   height: 1.8, crouchHeight: 1.25,
 };
 
-// Map: axis-aligned boxes. {x0,z0,x1,z1,h} — h is the top height; sight is
-// blocked when h > 1.35 (a standing eye line). kind picks the material.
+// Map: axis-aligned boxes {x0,z0,x1,z1,h}; sight is blocked when
+// h > 1.35 (a standing eye line). kind picks the material.
 export const WALLS = [
   // Perimeter, height 4.
   { x0: -45, z0: -35, x1: 45, z1: -34, h: 4, kind: 'wall' },
@@ -127,10 +126,9 @@ export const WALLS = [
   { x0: 35.5, z0: -20.5, x1: 36.5, z1: -19.5, h: 1.1, kind: 'crate' },
   { x0: -1, z0: 25.5, x1: 1, z1: 26.5, h: 1.1, kind: 'crate' },
   { x0: -1, z0: -26.5, x1: 1, z1: -25.5, h: 1.1, kind: 'crate' },
-  // v2 cover: two more containers and low sandbag walls near the mid and
-  // site approaches. Each was checked against every waypoint edge: no edge
-  // segment passes through any of these boxes (see the nav check in the
-  // repo's test notes), so bot routes stay walkable.
+  // v2 cover: two more containers and low sandbag walls near mid and
+  // the site approaches. Every waypoint edge was checked against these
+  // boxes, so bot routes stay walkable.
   { x0: 14, z0: 22, x1: 18, z1: 24.5, h: 2.6, kind: 'containerB' },
   { x0: -18, z0: -28, x1: -14, z1: -25.5, h: 2.6, kind: 'containerA' },
   { x0: 5, z0: 10, x1: 9, z1: 11, h: 1.1, kind: 'crate' },
@@ -162,8 +160,8 @@ export const SPAWNS = {
   ],
 };
 
-// Waypoint graph for bot navigation. Every edge is walkable (no wall crosses
-// the straight segment between its nodes).
+// Waypoint graph: every edge is walkable (no wall crosses the
+// straight segment between its nodes).
 export const WAYPOINTS = [
   { x: -6, z: 28 }, // 0 atk spawn
   { x: -38, z: 20 }, // 1 west south

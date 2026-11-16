@@ -1,8 +1,7 @@
-// Demo and attract mode. Two jobs: the menu's slow orbit over the map,
-// and deterministic ?shot=<name> setups so screenshots are real renders of
-// fixed game states (buy phase, combat, bomb site, round end).
-// This is a real game feature, not a capture hack: the attract camera runs
-// on the menu for every player.
+// Demo and attract mode: the menu's slow orbit over the map, and
+// deterministic ?shot=<name> setups so screenshots are real renders of
+// fixed game states (buy, combat, bomb site, round end). A real game
+// feature, not a capture hack: the attract camera runs on the menu.
 
 import { SITES } from './config.js';
 import { pushCallout, setBanner } from './state.js';
@@ -50,9 +49,8 @@ export function applyShot(state, shot) {
 
   if (shot === 'start') {
     // Buy phase at the attacker spawn, looking down mid, buy menu open.
-    // Teammates stand ahead of the player so they read in frame without
-    // blocking the camera. No banner here: startRound's already expired
-    // by capture time and would overlap the menu.
+    // Teammates stand ahead so they read in frame without blocking the
+    // camera. No banner: startRound's would overlap the menu.
     state.phase = 'buy';
     state.phaseTime = 2;
     place(p, -6, 24, 0);
@@ -71,10 +69,9 @@ export function applyShot(state, shot) {
 
   if (shot === 'combat') {
     // Mid-north firefight, past the doors: the player stands in the open
-    // with four Jackals ahead at 12–22 m, tracers crossing, a smoke cloud
-    // on the north entry and a contact callout on the radio. The bots
-    // engage for real (they see the player), so the tracers, muzzle
-    // flashes and feed are the live sim, not props.
+    // with four Jackals ahead at 9–19 m, team-coloured tracers crossing,
+    // smoke on both entries and a contact callout on the radio. The bots
+    // engage for real, so the tracers and flashes are the live sim.
     state.phase = 'live';
     state.phaseTime = 20;
     state.roundTimeLeft = 80;
@@ -87,18 +84,18 @@ export function applyShot(state, shot) {
     p.grenades = 1;
     p.smokes = 1;
     state.money = 500;
-    place(p, 0, -2, 0);
+    place(p, 0, -5, 0);
     place(rook, -3.5, 1, 0.3);
     place(sable, 4, 2, -0.4);
     place(ash, -6, 4, 0.2);
     place(flint, 6.5, 5, 0);
     place(vex, 2, -14, Math.PI);
-    place(mira, -5, -18, Math.PI - 0.3);
+    place(mira, -3.5, -17, Math.PI - 0.3);
     place(dusk, 8, -20, Math.PI + 0.2);
     place(nyx, -2, -24, Math.PI);
     place(onyx, 12, -16, Math.PI + 0.5);
-    // Everyone holds: the staged bots must not walk through the frame
-    // during the seconds before the capture.
+    // Everyone holds: staged bots must not walk through the frame
+    // before the capture.
     holdBot(rook, 0);
     holdBot(sable, 0);
     holdBot(ash, 0);
@@ -111,20 +108,21 @@ export function applyShot(state, shot) {
     // Tracers already in the air sell the firefight.
     state.tracers.push(
       { x0: 2, y0: 1.4, z0: -14, x1: 0.5, y1: 1.5, z1: 0, until: state.time + 30, team: 'jac' },
-      { x0: -5, y0: 1.4, z0: -18, x1: -1, y1: 1.2, z1: 2, until: state.time + 30, team: 'jac' },
+      { x0: -3.5, y0: 1.4, z0: -17, x1: -1, y1: 1.2, z1: 2, until: state.time + 30, team: 'jac' },
       { x0: 8, y0: 1.4, z0: -20, x1: 1.5, y1: 1.3, z1: -2, until: state.time + 30, team: 'jac' },
       { x0: -3.5, y0: 1.4, z0: 1, x1: 2, y1: 1.4, z1: -13, until: state.time + 30, team: 'van' },
     );
-    // A smoke cloud on the north entry, mid-bloom.
+    // Smoke clouds on both entries, mid-bloom.
     state.smoke.push({ x: 6, z: -26, r: 4.5, born: state.time - 0.6, until: state.time + 30 });
+    state.smoke.push({ x: -14, z: -26, r: 4.5, born: state.time - 0.6, until: state.time + 30 });
     pushCallout(state, 'Rook: Contact mid!', 'van');
     return;
   }
 
   if (shot === 'site') {
-    // Bomb planted at A: the player stands close to the bomb, looking at
-    // it and its beacon, teammates and Jackals around the walls, and a
-    // smoke cloud covering the north entry.
+    // Bomb planted at A: the player stands close to the bomb and its
+    // beacon; a Jackal defuses at the bomb, a smoke cloud covers the
+    // north entry.
     state.phase = 'live';
     state.phaseTime = 45;
     state.roundTimeLeft = 0;
@@ -149,7 +147,7 @@ export function applyShot(state, shot) {
     place(flint, -27, -29, -0.6);
     place(vex, -36, -20, 0.9);
     place(mira, -14, -16, -2.2);
-    place(dusk, -27, -29, 0.4);
+    place(dusk, -30, -23, 0.4);
     place(nyx, -38, -26, 0.7);
     place(onyx, -22, -30, -0.2);
     holdBot(rook, -2.4);
@@ -163,14 +161,15 @@ export function applyShot(state, shot) {
     holdBot(onyx, -0.2);
     state.smoke.push({ x: -31, z: -30, r: 4.5, born: state.time - 0.6, until: state.time + 30 });
     pushCallout(state, 'Flint: Bomb down A — hold angles', 'van');
+    pushCallout(state, 'Dusk: Defusing — cover me', 'jac');
     setBanner(state, 'BOMB PLANTED', 'Site A — 22s to detonation', 30);
     return;
   }
 
   if (shot === 'end') {
-    // Round just won: the banner and the score tell the story. The player
-    // stands at a slight diagonal so the fallen Jackals spread across the
-    // frame instead of lining up behind the mid pillars.
+    // Round just won: the banner and the score tell the story. The
+    // player stands at a slight diagonal so the fallen Jackals spread
+    // across the frame, not behind the mid pillars.
     state.phase = 'roundEnd';
     state.phaseTime = 1;
     state.round = 5;
@@ -179,9 +178,9 @@ export function applyShot(state, shot) {
     state.roundWinner = 'van';
     state.roundReason = 'All Jackals eliminated';
     state.buyOpen = false;
-    place(p, -3, -3, 0.15);
+    place(p, -2, -6, 0.15);
     place(rook, -7, 0, 0.4);
-    place(sable, 2, 1, -0.3);
+    place(sable, -1, -11, 0.6);
     place(ash, -10, -2, 0.3);
     place(flint, 5, -1, -0.4);
     // The Jackals are down (placed, then marked dead — place revives).

@@ -1,8 +1,8 @@
-// HUD: all DOM updates, the buy menu, the minimap and the overlays.
-// Reads state once per frame and only touches the DOM when a value changed.
+// HUD: DOM updates, buy menu, minimap, overlays. Reads state once
+// per frame and only touches the DOM when a value changed.
 
 import { BUY_ITEMS } from './round.js';
-import { SITES, TEAMS, WALLS, WEAPONS } from './config.js';
+import { SITES, WALLS, WEAPONS } from './config.js';
 import { aliveCount } from './state.js';
 
 function el(id) {

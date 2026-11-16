@@ -1,7 +1,6 @@
-// The single state store. One object holds the whole game; every module
-// reads and writes this object and nothing else holds game state.
-// Entities (player and bots) share one shape so combat, movement and the
-// renderer treat them the same way.
+// The single state store: one object holds the whole game, and every
+// module reads and writes it. Entities share one shape so combat,
+// movement and the renderer treat them the same way.
 
 import { BOT_NAMES, ECON, ROUND, SPAWNS, WEAPONS } from './config.js';
 import { mulberry32 } from './util.js';
@@ -76,15 +75,14 @@ export function createState(seed) {
     noises: [],
     // Kill feed entries: {text, team, until}.
     feed: [],
-    // Radio callouts from bots: {text, team, until} — the HUD shows them
-    // in their own panel so team coordination is visible to the player.
+    // Radio callouts: {text, team, until} — the HUD shows them in their
+    // own panel so team coordination is visible.
     callouts: [],
     calloutAt: { van: -10, jac: -10 }, // team-wide radio throttle (seconds); -10 so the first callout is never throttled
     // This round's attack plan {name, site}, set by tactics.js.
     plan: null,
     // Team-shared intel: each team's latest known enemy position
-    // {x, z, at} or null. Written when any bot spots an enemy; read by
-    // every teammate's think step (tactics.js).
+    // {x, z, at} or null, written when any bot spots an enemy.
     intel: { van: null, jac: null },
     // Hitmarker: the player's latest hit (HUD flashes it briefly).
     hitmark: { at: -1, kill: false, head: false },
@@ -114,8 +112,8 @@ export function createState(seed) {
   };
 }
 
-// Put every entity back on its spawn with full health and its kept loadout.
-// Money and owned weapons survive between rounds; ammo refills.
+// Back to spawns with full health and kept loadouts; money and owned
+// weapons survive between rounds, ammo refills.
 export function resetRoundEntities(state) {
   const used = { van: 0, jac: 0 };
   for (const e of state.players) {
@@ -189,8 +187,8 @@ export function pushFeed(state, text, team) {
   if (state.feed.length > 5) state.feed.shift();
 }
 
-// A bot radio callout: rate-limited per team in tactics.js, shown in the
-// HUD's radio panel. Max 3 on screen.
+// A bot radio callout, rate-limited per team in tactics.js. Max 3
+// on screen.
 export function pushCallout(state, text, team) {
   state.callouts.push({ text, team, until: state.time + 4.5 });
   if (state.callouts.length > 3) state.callouts.shift();

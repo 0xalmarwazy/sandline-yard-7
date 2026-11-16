@@ -1,7 +1,7 @@
 // Rendering: the three.js scene, bot meshes, the first-person viewmodel
-// and short-lived effects. Reads state, never writes it (except pruning
-// nothing — the sim owns all state). All geometries and materials are
-// shared; per-frame work reuses preallocated buffers.
+// and short-lived effects. Reads state, never writes it — the sim owns
+// all state. Geometries and materials are shared; per-frame work reuses
+// preallocated buffers.
 
 import * as THREE from 'three';
 import { PALETTE, SITES, TEAMS } from './config.js';
@@ -10,6 +10,8 @@ import { eyeHeight } from './player.js';
 
 const MAX_TRACERS = 64;
 const MAX_RINGS = 16;
+// Tracer colour per team (linear RGB): blue Vanguard, red Jackals.
+const TR_COL = { van: [0.22, 0.74, 0.97], jac: [0.94, 0.27, 0.27] };
 
 function nameTexture(text, colorHex) {
   const c = document.createElement('canvas');
@@ -46,8 +48,8 @@ function makeBotMesh(e) {
   const visor = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.1, 0.06), accentMat);
   visor.position.set(0, 1.6, -0.22);
   group.add(visor);
-  // Kit detail: backpack, shoulder pads and a team chest stripe so bots
-  // read as soldiers, not capsules, at screenshot distance.
+  // Kit detail: backpack, shoulder pads, team chest stripe — bots read
+  // as soldiers, not capsules, at screenshot distance.
   const pack = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.44, 0.18), darkMat);
   pack.position.set(0, 1.28, 0.3);
   pack.castShadow = true;
@@ -85,7 +87,7 @@ function makeBotMesh(e) {
 }
 
 // Shared radial-gradient texture (sun, clouds, muzzle flashes): one
-// canvas, drawn once, reused everywhere a soft glow is needed.
+// canvas, drawn once, reused for every soft glow.
 function radialTexture(stops) {
   const c = document.createElement('canvas');
   c.width = 64; c.height = 64;
@@ -116,7 +118,7 @@ function skyTexture() {
 
 function makeViewmodel() {
   const group = new THREE.Group();
-  const dark = new THREE.MeshStandardMaterial({ color: 0x24262b, roughness: 0.55, metalness: 0.5 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x3a3e46, roughness: 0.55, metalness: 0.5 });
   const tan = new THREE.MeshStandardMaterial({ color: 0x9a7d4f, roughness: 0.7, metalness: 0.2 });
   const accent = new THREE.MeshStandardMaterial({ color: PALETTE.accent, roughness: 0.5, metalness: 0.3 });
   // Slim receiver + tan handguard + stock: reads as a rifle, not a slab.
@@ -159,14 +161,14 @@ function makeViewmodel() {
   return group;
 }
 
-// Viewmodel barrel shape per weapon: [radius, length]. The vk47 gets a long
-// barrel, the m870 a thick one, the p9 a stub — so the gun in your hands
-// matches what you bought.
+// Viewmodel barrel shape per weapon [radius, length]: the vk47 gets a
+// long barrel, the m870 a thick one, the p9 a stub — so the gun in
+// your hands matches what you bought.
 const VM_BARREL = {
   p9: [0.016, 0.22], k9: [0.018, 0.26], m870: [0.034, 0.34], vk47: [0.024, 0.42],
 };
-// Whole-gun scale per weapon: the sidearm is a compact pistol, the
-// shotgun the biggest gun in the hand.
+// Whole-gun scale per weapon: the sidearm is compact, the shotgun
+// the biggest gun in the hand.
 const VM_SCALE = { p9: 0.62, k9: 0.74, m870: 0.85, vk47: 0.8 };
 
 export function createRenderer(state, container) {
@@ -208,7 +210,7 @@ export function createRenderer(state, container) {
   camera.rotation.order = 'YXZ';
 
   // Lighting: golden hour — warm low sun, sky/ground bounce, plus a low
-  // ambient floor so shadow-side faces stay readable instead of going black.
+  // ambient floor so shadow sides stay readable.
   const hemi = new THREE.HemisphereLight(0xc3d4e2, 0x8a7a5a, 1.5);
   scene.add(hemi);
   scene.add(new THREE.AmbientLight(0xffffff, 0.35));
@@ -236,14 +238,14 @@ export function createRenderer(state, container) {
     botMeshes.set(e.id, mesh);
   }
 
-  // Viewmodel + muzzle light, parented to the camera. A small fill light
-  // rides with the camera so the gun never reads as a black silhouette.
+  // Viewmodel + muzzle light, parented to the camera; the fill light
+  // keeps the gun from reading as a black silhouette.
   const viewmodel = makeViewmodel();
   viewmodel.position.set(0.3, -0.27, -0.72);
   viewmodel.rotation.y = -0.06;
   viewmodel.scale.setScalar(0.8);
   camera.add(viewmodel);
-  const vmLight = new THREE.PointLight(0xfff2dd, 2.5, 3.5, 1.6);
+  const vmLight = new THREE.PointLight(0xfff2dd, 4.0, 3.5, 1.6);
   vmLight.position.set(0.1, 0.15, -0.3);
   camera.add(vmLight);
   const muzzleLight = new THREE.PointLight(0xffc46b, 0, 9, 1.8);
@@ -252,13 +254,15 @@ export function createRenderer(state, container) {
   scene.add(camera);
 
   // Tracers: one LineSegments, positions rebuilt from state each frame.
-  // Each tracer draws 3 parallel lines (a faked thickness: WebGL ignores
-  // line width), so shots read at a glance.
+  // Each tracer draws 3 parallel lines (faked thickness: WebGL ignores
+  // line width), coloured by the shooter's team.
   const tracerGeo = new THREE.BufferGeometry();
   const tracerPos = new Float32Array(MAX_TRACERS * 18);
+  const tracerCol = new Float32Array(MAX_TRACERS * 18);
   tracerGeo.setAttribute('position', new THREE.BufferAttribute(tracerPos, 3));
+  tracerGeo.setAttribute('color', new THREE.BufferAttribute(tracerCol, 3));
   const tracers = new THREE.LineSegments(tracerGeo, new THREE.LineBasicMaterial({
-    color: 0xfff2c0, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false,
+    vertexColors: true, transparent: true, opacity: 0.95, depthWrite: false,
   }));
   tracers.frustumCulled = false;
   scene.add(tracers);
@@ -286,8 +290,8 @@ export function createRenderer(state, container) {
   const boomLight = new THREE.PointLight(0xff9a3d, 0, 30, 1.5);
   scene.add(boomLight);
 
-  // Grenade meshes, pooled. 8 slots: 10 players can have more live
-  // grenades than the v1 pool of 4.
+  // Grenade meshes, pooled: 8 slots (10 players can have more live
+  // grenades than the v1 pool of 4).
   const grenadeMeshes = [];
   const grenadeGeo = new THREE.SphereGeometry(0.11, 10, 8);
   const grenadeMat = new THREE.MeshStandardMaterial({ color: 0x2a2d33, roughness: 0.5, metalness: 0.6 });
@@ -314,8 +318,8 @@ export function createRenderer(state, container) {
   let botFlashIdx = 0;
   const botShotSeen = new Map();
 
-  // Smoke clouds: pooled groups of translucent spheres, one material per
-  // group so each cloud fades independently near expiry.
+  // Smoke clouds: pooled translucent spheres, one material per group
+  // so each cloud fades independently near expiry.
   const smokeGroups = [];
   for (let i = 0; i < 4; i++) {
     const group = new THREE.Group();
@@ -333,8 +337,8 @@ export function createRenderer(state, container) {
     smokeGroups.push({ group, mat });
   }
 
-  // Bomb: a case with a blinking beacon and a red ring on the ground,
-  // shown once planted — big enough to read across a site.
+  // Bomb: a case with a blinking beacon and a red ground ring, shown
+  // once planted — big enough to read across a site.
   const bombGroup = new THREE.Group();
   const bombCase = new THREE.Mesh(
     new THREE.BoxGeometry(0.62, 0.3, 0.42),
@@ -361,8 +365,8 @@ export function createRenderer(state, container) {
   bombGroup.visible = false;
   scene.add(bombGroup);
 
-  // Site beacons: soft light columns over each site so they read at a glance,
-  // plus a tinted point light in the site's colour (teal A, amber B).
+  // Site beacons: soft light columns over each site, plus a tinted
+  // point light in the site's colour (teal A, amber B).
   for (const key of Object.keys(SITES)) {
     const s = SITES[key];
     const col = new THREE.Mesh(
@@ -379,7 +383,6 @@ export function createRenderer(state, container) {
   let bobPhase = 0;
   let lastShotSeen = -1;
   let lastVmWeapon = '';
-  const _v = new THREE.Vector3();
 
   function resize() {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -489,7 +492,7 @@ export function createRenderer(state, container) {
     }
 
     // Tracers: 3 parallel lines each (main + two offset by 0.035 m
-    // perpendicular), so a shot reads as a streak, not a hair.
+    // perpendicular), coloured by team.
     const list = state.tracers;
     let n = 0;
     for (let i = 0; i < list.length && n < MAX_TRACERS; i++) {
@@ -499,6 +502,8 @@ export function createRenderer(state, container) {
       const dl = Math.hypot(dx, dz) || 1;
       const px = (-dz / dl) * 0.035, pz = (dx / dl) * 0.035;
       const o = n * 18;
+      const c = TR_COL[t.team] || TR_COL.van;
+      for (let k = 0; k < 18; k += 3) { tracerCol[o + k] = c[0]; tracerCol[o + k + 1] = c[1]; tracerCol[o + k + 2] = c[2]; }
       tracerPos[o] = t.x0; tracerPos[o + 1] = t.y0; tracerPos[o + 2] = t.z0;
       tracerPos[o + 3] = t.x1; tracerPos[o + 4] = t.y1; tracerPos[o + 5] = t.z1;
       tracerPos[o + 6] = t.x0 + px; tracerPos[o + 7] = t.y0; tracerPos[o + 8] = t.z0 + pz;
@@ -509,6 +514,7 @@ export function createRenderer(state, container) {
     }
     tracerGeo.setDrawRange(0, n * 6);
     tracerGeo.attributes.position.needsUpdate = true;
+    tracerGeo.attributes.color.needsUpdate = true;
 
     // Impact rings: spawn on new impacts, expand and fade.
     for (const imp of state.impacts) {
@@ -561,8 +567,8 @@ export function createRenderer(state, container) {
       }
     }
 
-    // Smoke clouds: pool follows state.smoke, blooming in over 1 s and
-    // fading out over the last 2 s of the cloud's life.
+    // Smoke clouds: the pool follows state.smoke, blooming in over 1 s
+    // and fading out over the last 2 s of life.
     let si = 0;
     for (const c of state.smoke) {
       if (si >= smokeGroups.length) break;
@@ -570,7 +576,7 @@ export function createRenderer(state, container) {
       const age = now - c.born;
       const fadeIn = Math.min(1, age / 1);
       const fadeOut = Math.min(1, Math.max(0, c.until - now) / 2);
-      s.mat.opacity = 0.38 * fadeIn * fadeOut;
+      s.mat.opacity = 0.55 * fadeIn * fadeOut;
       s.group.position.set(c.x, 1.1, c.z);
       s.group.scale.setScalar(0.6 + 0.4 * fadeIn);
       s.group.visible = s.mat.opacity > 0.01;
@@ -590,7 +596,6 @@ export function createRenderer(state, container) {
 
     // Site light columns stay; nothing else to sync.
     renderer.render(scene, camera);
-    _v.set(0, 0, 0);
   }
 
   return { renderer, scene, camera, update, resize, dom: renderer.domElement };

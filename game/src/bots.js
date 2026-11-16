@@ -1,7 +1,7 @@
-// Bot brains: routes, holds, perception (sight + hearing), burst fire and
+// Bot brains: routes, holds, perception (sight + hearing), burst fire,
 // objective play. Decisions run at ~8 Hz (think), movement every tick.
-// Bots move with the same physics as the player (moveEntity) and shoot with
-// the same weapons (stepWeapons) — no separate rules for them.
+// Bots use the player's physics (moveEntity) and weapons (stepWeapons)
+// — no separate rules for them.
 
 import { EDGES, SITES, WAYPOINTS } from './config.js';
 import { hasClearSight, hasLineOfSight } from './combat.js';
@@ -12,7 +12,6 @@ import { angleDelta, dist2, findPath, nearestWaypoint, turnToward } from './util
 
 const THINK_EVERY = 0.12;
 const SEE_DIST = 48;
-const HEAR_FALLOFF = 1;
 
 export function initBots(state) {
   for (const e of state.players) {
@@ -50,9 +49,8 @@ export function routeTo(state, e, destWp) {
   b.destWp = destWp;
 }
 
-// Route through the bot's plan chain (b.via) in order: BFS each leg and
-// concatenate, so a lane assignment is a real path, not a hint. Consumes
-// b.via.
+// Route through the bot's plan chain (b.via) in order: BFS each leg
+// and concatenate. Consumes b.via.
 const _leg = [];
 export function routeVia(state, e) {
   const b = e.bot;
@@ -93,7 +91,7 @@ function hearNoise(state, e) {
     const n = state.noises[i];
     if (state.time > n.until) continue;
     const d = dist2(e.pos.x, e.pos.z, n.x, n.z);
-    if (d < n.radius * HEAR_FALLOFF) return n;
+    if (d < n.radius) return n;
   }
   return null;
 }
@@ -101,8 +99,8 @@ function hearNoise(state, e) {
 function think(state, e) {
   const b = e.bot;
   const now = state.time;
-  // Freeze time: during the buy phase bots hold where they are (defenders
-  // drift to their hold spots via the hold state; attackers wait at spawn).
+  // Buy phase: bots hold (defenders drift to hold spots, attackers
+  // wait at spawn).
   if (state.phase === 'buy') {
     b.state = 'hold';
     return;
@@ -122,8 +120,8 @@ function think(state, e) {
       b.target = seen.id;
       b.trackTime = 0;
       b.reactAt = now + 0.35 + state.rng() * 0.3;
-      // Team play: share the sighting and call it on the radio. A hurt
-      // bot calls for help instead of a plain contact.
+      // Team play: share the sighting and call it. A hurt bot calls
+      // for help instead of a plain contact.
       shareIntel(state, e.team, seen.pos.x, seen.pos.z);
       if (e.health < 40 && !b.helpCalled) {
         if (callout(state, e, 'help', zoneOf(e.pos.x, e.pos.z))) b.helpCalled = true;
@@ -194,8 +192,8 @@ function think(state, e) {
     return;
   }
 
-  // Team intel: a teammate's fresh sighting. Defenders rotate to the
-  // threatened site; attackers nearby investigate.
+  // Team intel: a teammate's fresh sighting — defenders rotate to
+  // the threatened site, nearby attackers investigate.
   const intel = state.intel[e.team];
   if (intel && now - intel.at < 3.5) {
     const d = dist2(e.pos.x, e.pos.z, intel.x, intel.z);
@@ -271,7 +269,7 @@ function think(state, e) {
         b.state = 'plant';
       } else {
         // Cover the planter: hold a site spot facing the main entry and
-        // say so once, so the player sees the coordination.
+        // say so once.
         b.state = 'hold';
         const hold = siteHoldWp(b.planSite, state.players.indexOf(e));
         if (b.holdWp !== hold) {
@@ -479,8 +477,8 @@ function stepBot(state, e, dt) {
     }
   }
 
-  // Opportunistic grenades: a known enemy behind cover, 8–20 m away.
-  // Attackers pushing a site smoke the entry instead when they carry one.
+  // Opportunistic grenades: a known enemy behind cover, 8–20 m away;
+  // attackers pushing a site smoke the entry instead.
   if ((e.grenades > 0 || e.smokes > 0) && b.lastKnown && now >= b.throwAt && b.state !== 'engage') {
     const d = dist2(e.pos.x, e.pos.z, b.lastKnown.x, b.lastKnown.z);
     if (d > 8 && d < 20 && !hasLineOfSight(e.pos.x, e.pos.z, b.lastKnown.x, b.lastKnown.z)) {
